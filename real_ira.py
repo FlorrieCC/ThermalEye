@@ -16,14 +16,15 @@ def getch():
     return ch
 
 def main():
-    # 设置是否保存数据（True：保存；False：不保存）
-    save_flag = "False"  
+    # 设置是否保存数据：传入 "True" 或 "False"
+    save_flag = "True"  # 若不保存数据，将此处改为 "False"
 
-    # 启动两个子进程，并传入 save_flag 参数
+    # 启动三个子进程，并传入 save_flag 参数
     process0 = subprocess.Popen(['python', 'ira/ira0.py', save_flag])
     process1 = subprocess.Popen(['python', 'ira/ira1.py', save_flag])
+    process2 = subprocess.Popen(['python', 'real/realsense.py', save_flag])
     
-    print("程序已启动，按下 'q' 键将终止两个进程。")
+    print("所有程序已启动，按下 'q' 键将终止所有进程。")
     
     # 监听键盘输入，检测到 'q' 后发送 SIGINT 信号
     while True:
@@ -32,11 +33,13 @@ def main():
             print("检测到 'q'，正在发送中断信号...")
             process0.send_signal(signal.SIGINT)
             process1.send_signal(signal.SIGINT)
+            process2.send_signal(signal.SIGINT)
             break
 
-    # 等待子进程退出
+    # 等待所有子进程退出
     process0.wait()
     process1.wait()
+    process2.wait()
     print("所有进程已终止。")
 
 if __name__ == "__main__":

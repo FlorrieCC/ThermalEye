@@ -47,7 +47,7 @@ def overlay_temperature_values(image, temperature, scale_factor=20, step=4):
 def monitor_serial(port='/dev/ttyUSB0', baud_rate=921600, save_flag = True):
     try:
         # 创建文件夹与文件名
-        save_dir = "ira_data/0406/ira1/"
+        save_dir = "ira_data/0407/ira1/"
         os.makedirs(save_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         video_path = os.path.join(save_dir, f"video_{timestamp}.mp4")
