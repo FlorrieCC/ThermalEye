@@ -108,6 +108,8 @@ def main():
                     out = cv2.VideoWriter(current_filename, fourcc, FPS, (FRAME_WIDTH, FRAME_HEIGHT))
                     print("开始保存新文件：", current_filename)
                     start_time = time.time()
+    except KeyboardInterrupt:
+        print("\n用户中断, 关闭realsense")
     except Exception as e:
         print("Error:", e)
     finally:
