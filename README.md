@@ -38,3 +38,73 @@ OpenmMV development board is also a usb device, put the [main file](https://gith
 
 
 ### The complete readme: https://possible-calf-de9.notion.site/Thermal-Duo-One-Truth-Building-a-Reliable-Deployment-for-Comparative-Thermal-Sensing-1c7208d1fa5780f2997dd9ca39009ebf?pvs=4
+
+
+
+## MLX9064x Series
+
+- **Name (CN)**: Grid-Eye Infrared Thermal Sensor Array
+- **Models**: MLX90640 / MLX90641 ([Official Website](https://www.melexis.com/en/))
+- **Operating Principle**: Uncooled IR sensor based on thermopile technology (7.5 - 14 µm)
+- **Video Stream Support**: Supported
+
+### 📊 Specification Comparison
+
+| Parameter                 | MLX90640                         | MLX90641                         |
+|---------------------------|----------------------------------|----------------------------------|
+| **Resolution**            | 32×24                            | 16×12                            |
+| **Frame Rate**            | 0.5Hz ~ 64Hz                     | 0.5Hz ~ 64Hz                     |
+| **Temperature Range**     | -40°C to 300°C                   | -40°C to 300°C                   |
+| **Field of View (FOV)**   | 55°×35° or 110°×75°              | 55°×35°                          |
+| **Thermal Sensitivity**   | ~100 mK                          | ~100 mK                          |
+| **Data Format**           | 16-bit raw data; Celsius output  | 16-bit raw data; Celsius output  |
+| **Price**                 | ~250–400 HKD                     | ~250–400 HKD                     |
+| **Data Reading**          | [Melexis Python Drivers](https://github.com/melexis) | [Melexis Python Drivers](https://github.com/melexis) |
+```
+
+
+# 📘 realsense&MLX Guidance
+
+## 🔧 Installation Guide for ThermalEye
+
+### 📌 Prerequisites
+
+- Python **3.10.2**
+- `pip` (Python package installer)
+- Optional but recommended: use a virtual environment (`venv` or `virtualenv`) to isolate dependencies.
+
+---
+
+### 📁 Step-by-step Installation
+
+1. **Clone the repository** (if not already):
+   ```bash
+   git clone https://github.com/your-username/ThermalEye.git
+   cd ThermalEye
+   ```
+
+2. **(Optional) Create a virtual environment**:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install the required Python packages**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Required Packages (already listed in `requirements.txt`)**:
+
+   - `numpy`
+   - `opencv-python`
+   - `pyserial`
+   - `pyrealsense2`
+
+   > 📝 **Note**: Some standard libraries used in the project (e.g., `os`, `time`, `datetime`, `sys`, `pickle`, etc.) come bundled with Python and do not require installation.
+
+5. **You're all set! Run the project using**:
+   ```bash
+   python real_ira.py
+   ```
+```
