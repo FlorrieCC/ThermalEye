@@ -60,7 +60,6 @@ OpenmMV development board is also a usb device, put the [main file](https://gith
 | **Data Format**           | 16-bit raw data; Celsius output  | 16-bit raw data; Celsius output  |
 | **Price**                 | ~250–400 HKD                     | ~250–400 HKD                     |
 | **Data Reading**          | [Melexis Python Drivers](https://github.com/melexis) | [Melexis Python Drivers](https://github.com/melexis) |
-```
 
 
 # 📘 realsense&MLX Guidance
