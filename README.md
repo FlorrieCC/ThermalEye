@@ -37,7 +37,7 @@ OpenmMV development board is also a usb device, put the [main file](https://gith
 - **Data Reading**: [seekcamera-python SDK](https://github.com/seekcamera/seekcamera-python)
 
 
-### The complete readme: https://possible-calf-de9.notion.site/Thermal-Duo-One-Truth-Building-a-Reliable-Deployment-for-Comparative-Thermal-Sensing-1c7208d1fa5780f2997dd9ca39009ebf?pvs=4
+**The complete readme: https://possible-calf-de9.notion.site/Thermal-Duo-One-Truth-Building-a-Reliable-Deployment-for-Comparative-Thermal-Sensing-1c7208d1fa5780f2997dd9ca39009ebf?pvs=4**
 
 
 
