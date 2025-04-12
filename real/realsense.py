@@ -8,12 +8,32 @@ from datetime import datetime
 
 def parse_args():
     """
-    解析命令行参数，判断是否保存数据，默认不保存
+    解析命令行参数：
+    sys.argv[1] -- save_flag (控制是否保存数据，传入 False/0/no 则关闭保存，默认为 True)
+    sys.argv[2] -- run_time (程序运行时间，单位秒，不传入或为0则无限制运行)
+    sys.argv[3] -- save_dir (保存数据文件夹，不传入则默认为 "real_data")
+    sys.argv[4] -- save_name (保存文件名前缀，不传入则默认为 "output")
     """
+    # 默认值
     save_flag = True
+    run_time = 0   # 无限运行
+    save_dir = "real_data"
+    save_name = "output"
+    
     if len(sys.argv) > 1:
         save_flag = sys.argv[1].lower() not in ['false', '0', 'no']
-    return save_flag
+    if len(sys.argv) > 2:
+        try:
+            run_time = float(sys.argv[2])
+        except ValueError:
+            print("运行时间参数不合法，使用默认无限制运行")
+            run_time = 0
+    if len(sys.argv) > 3:
+        save_dir = sys.argv[3]
+    if len(sys.argv) > 4:
+        save_name = sys.argv[4]
+    
+    return save_flag, run_time, save_dir, save_name
 
 def check_device():
     """
@@ -42,51 +62,59 @@ def initialize_pipeline(frame_width, frame_height, fps):
     pipeline.start(config)
     return pipeline
 
-def new_filename(save_dir, file_index):
+def new_filename(save_dir, save_name, file_index):
     """
-    生成带时间戳和编号的 MP4 文件名，保存在指定目录下
+    生成带时间戳和编号的 MP4 文件名，保存在指定目录下，
+    文件名前缀使用命令行参数 save_name。
     """
     now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return os.path.join(save_dir, f"output_{now_str}_{file_index}.mp4")
+    return os.path.join(save_dir, f"{save_name}_{now_str}_{file_index}.mp4")
 
-def main():
+def record_realsense(save_flag, run_time, save_dir, save_name):
+    """
+    根据传入的参数开启 RealSense 录像，
+    - save_flag: 是否保存数据
+    - run_time: 运行时间（秒），若为 0 则无限运行
+    - save_dir: 保存目录
+    - save_name: 文件名前缀
+    """
     # 参数设置
     SAVE_INTERVAL = 2 * 60  # 每隔 2 分钟保存一个文件
     FRAME_WIDTH, FRAME_HEIGHT = 640, 480
     FPS = 15
-    SAVE_DIR = "real_data"  # 保存目录
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # MP4 编码格式
 
-    # 解析命令行参数
-    save_flag = parse_args()
-    
-    # 检查 RealSense 设备是否连接
+    # 检查设备并创建保存目录
     check_device()
-    
-    # 创建保存目录（如果需要保存数据）
-    create_save_dir(save_flag, SAVE_DIR)
+    create_save_dir(save_flag, save_dir)
     
     # 初始化 pipeline
     pipeline = initialize_pipeline(FRAME_WIDTH, FRAME_HEIGHT, FPS)
     
     # 初始化保存变量
-    start_time = time.time()
+    start_time = time.time()      # 当前文件保存起始时间
+    total_start_time = start_time # 程序整体运行起始时间
     file_index = 1
     out = None
     if save_flag:
-        current_filename = new_filename(SAVE_DIR, file_index)
+        current_filename = new_filename(save_dir, save_name, file_index)
         out = cv2.VideoWriter(current_filename, fourcc, FPS, (FRAME_WIDTH, FRAME_HEIGHT))
         print("开始保存新文件：", current_filename)
     
     try:
         while True:
+            # 检查整体运行时间是否达到设定值（run_time > 0 时）
+            if run_time > 0 and (time.time() - total_start_time) >= run_time:
+                print(f"达到设定的运行时间 {run_time} 秒，程序自动停止。")
+                break
+            
             # 获取 RealSense 帧
             frames = pipeline.wait_for_frames()
             color_frame = frames.get_color_frame()
             if not color_frame:
                 continue
 
-            # 转为 Numpy 数组
+            # 转换为 Numpy 数组
             color_image = np.asanyarray(color_frame.get_data())
 
             # 保存视频帧（如果需要保存数据）
@@ -98,18 +126,18 @@ def main():
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-            # 检查是否超时，需要切换保存文件
+            # 检查是否超出当前文件保存间隔，需要新建文件
             if save_flag:
                 elapsed = time.time() - start_time
                 if elapsed >= SAVE_INTERVAL:
                     out.release()
                     file_index += 1
-                    current_filename = new_filename(SAVE_DIR, file_index)
+                    current_filename = new_filename(save_dir, save_name, file_index)
                     out = cv2.VideoWriter(current_filename, fourcc, FPS, (FRAME_WIDTH, FRAME_HEIGHT))
                     print("开始保存新文件：", current_filename)
                     start_time = time.time()
     except KeyboardInterrupt:
-        print("\n用户中断, 关闭realsense")
+        print("\n用户中断, 关闭 RealSense")
     except Exception as e:
         print("Error:", e)
     finally:
@@ -117,6 +145,12 @@ def main():
             out.release()
         pipeline.stop()
         cv2.destroyAllWindows()
+
+def main():
+    # 解析命令行参数
+    save_flag, run_time, save_dir, save_name = parse_args()
+    # 调用录像函数，将参数传递进去
+    record_realsense(save_flag, run_time, save_dir, save_name)
 
 if __name__ == "__main__":
     main()

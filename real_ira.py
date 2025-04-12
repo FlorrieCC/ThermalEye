@@ -18,8 +18,12 @@ def getch():
 
 def main():
     # 设置是否保存数据：传入 "True" 或 "False"
-    save_flag = "False"  # 若不保存数据，将此处改为 "False"
+    save_flag = "True"  # 若不保存数据，将此处改为 "False"
     run_time = "5"   # 以秒为单位的运行时间
+    ira1_save_dir = "ira_data/0412/"
+    ira1_save_name = "data"
+    real_save_dir = "real_data/0412/"
+    real_save_name = "output"
 
     try:
         run_time = float(run_time)
@@ -28,9 +32,9 @@ def main():
         run_time = 0
 
     # 启动子进程，并传入 save_flag 与 run_time 参数
-    process0 = subprocess.Popen(['python', 'ira/ira1.py', save_flag, str(run_time)])
+    process0 = subprocess.Popen(['python', 'ira/ira1.py', save_flag, str(run_time), ira1_save_dir, ira1_save_name])
     # process1 = subprocess.Popen(['python', 'ira/ira0.py', save_flag])
-    # process2 = subprocess.Popen(['python', 'real/realsense.py', save_flag])
+    # process2 = subprocess.Popen(['python', 'real/realsense.py', save_flag], str(run_time), real_save_dir, real_save_name)
     
     print("所有程序已启动，按下 'q' 键或等待设定运行时间结束将终止所有进程。")
     
