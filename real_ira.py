@@ -1,82 +1,49 @@
 import subprocess
-import time
-import threading
+import sys
 from datetime import datetime
 
-def current_time_str():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # 精确到毫秒
+def run_ira1_and_realsense(save_flag=True, run_time=0, ira1_dir="ira_data/", ira1_name="data", real_dir="real_data/", real_name="data"):
+    save_flag_str = "True" if save_flag else "False"
+    run_time_str = str(run_time)
 
-def start_process(cmd, name, creationflags):
-    print(f"[{current_time_str()}] 启动{name}：{' '.join(cmd)}")
-    return subprocess.Popen(cmd, creationflags=creationflags)
+    # 构造 ira1.py 命令
+    ira1_cmd = [
+        sys.executable,
+        "ira/ira1.py",
+        save_flag_str,
+        run_time_str,
+        ira1_dir,
+        ira1_name
+    ]
 
-def main():
-    save_flag = "False"
-    run_time = "360"
+    # 构造 realsense.py 命令
+    realsense_cmd = [
+        sys.executable,
+        "real/realsense.py",
+        save_flag_str,
+        run_time_str,
+        real_dir,
+        real_name
+    ]
 
-    ira1_save_dir = "ira_data/0412/"
-    ira1_save_name = "noise"
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] 启动 ira1 子进程：", " ".join(ira1_cmd))
+    ira1_proc = subprocess.Popen(ira1_cmd)
 
-    real_save_dir = "real_data/0412/"
-    real_save_name = "noise"
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] 启动 realsense 子进程：", " ".join(realsense_cmd))
+    realsense_proc = subprocess.Popen(realsense_cmd)
 
-    try:
-        run_time = float(run_time)
-    except ValueError:
-        print("运行时间参数不合法，使用默认无限制运行")
-        run_time = 0
+    # 等待两个子进程完成
+    ira1_proc.wait()
+    realsense_proc.wait()
 
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP") else 0
-
-    # 容器记录子进程
-    processes = {}
-
-    def launch_ira1():
-        processes['ira1'] = start_process(
-            ['python', 'ira/ira1.py', save_flag, str(run_time), ira1_save_dir, ira1_save_name],
-            'ira1', creationflags
-        )
-
-    def launch_realsense():
-        processes['realsense'] = start_process(
-            ['python', 'real/realsense.py', save_flag, str(run_time), real_save_dir, real_save_name],
-            'realsense', creationflags
-        )
-
-    # 使用线程“并发”启动
-    thread1 = threading.Thread(target=launch_ira1)
-    thread2 = threading.Thread(target=launch_realsense)
-
-    thread1.start()
-    thread2.start()
-    thread1.join()
-    thread2.join()
-
-    print("所有程序已启动。按 Ctrl+C 可提前终止运行。")
-
-    start_time = time.time()
-
-    try:
-        while True:
-            if run_time > 0 and (time.time() - start_time) > run_time:
-                print(f"[{current_time_str()}] 已运行 {run_time} 秒，终止所有子进程...")
-                break
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        print(f"\n[{current_time_str()}] 检测到 Ctrl+C，正在终止子进程...")
-    finally:
-        for name, p in processes.items():
-            if p.poll() is None:
-                print(f"[{current_time_str()}] 正在终止{name}")
-                p.terminate()
-        for name, p in processes.items():
-            try:
-                p.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                print(f"[{current_time_str()}] 强制终止{name}")
-                p.kill()
-
-        print("所有子进程已终止。")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] 两个子进程已结束。")
 
 if __name__ == "__main__":
-    main()
+    run_ira1_and_realsense(
+        save_flag=True,
+        run_time=125,
+        ira1_dir="ira_data/0413/",
+        ira1_name="cyh_2",
+        real_dir="real_data/0413/",
+        real_name="cyh_2"
+    )

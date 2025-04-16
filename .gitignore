@@ -136,6 +136,8 @@ ENV/
 env.bak/
 venv.bak/
 seek_data/
+real_data/
+ira_data/
 
 # Spyder project settings
 .spyderproject
