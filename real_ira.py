@@ -41,9 +41,9 @@ def run_ira1_and_realsense(save_flag=True, run_time=0, ira1_dir="ira_data/", ira
 if __name__ == "__main__":
     run_ira1_and_realsense(
         save_flag=True,
-        run_time=125,
-        ira1_dir="ira_data/0413/",
-        ira1_name="cyh_2",
-        real_dir="real_data/0413/",
-        real_name="cyh_2"
+        run_time=120,
+        ira1_dir="ira_data/0430/",
+        ira1_name="callibration",
+        real_dir="real_data/0430/",
+        real_name="callibration"
     )

@@ -72,7 +72,7 @@ def overlay_temperature_values(image, temperature, scale_factor=20, step=4):
 def monitor_serial(port='COM3', baud_rate=921600, save_flag=True, run_time=0, save_dir='', save_name=''):
     try:
         os.makedirs(save_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # ms precision
         video_path = os.path.join(save_dir, f"video_{timestamp}.mp4")
         data_path = os.path.join(save_dir, f"{save_name}_{timestamp}.pkl")
 
@@ -87,15 +87,12 @@ def monitor_serial(port='COM3', baud_rate=921600, save_flag=True, run_time=0, sa
 
         cv2.namedWindow('IR Temperature', cv2.WINDOW_AUTOSIZE)
         all_temperature_data = []
+        all_timestamp_data = []
 
         frame_count = 0
         start_time = time.time()
         display_fps = 0
 
-        record_delay = 5  # 延迟录制时间（秒）
-        start_record_time = start_time + record_delay
-        if save_flag:
-         print(f"[INFO] 将在 {record_delay} 秒后开始录制数据...")
 
         while True:
             if ser.in_waiting > 0:
@@ -113,8 +110,8 @@ def monitor_serial(port='COM3', baud_rate=921600, save_flag=True, run_time=0, sa
                         Detected_temperature = temperature_data.reshape((12, 16))
 
                         current_time = time.time()
-                        if current_time >= start_record_time:
-                            all_temperature_data.append(Detected_temperature.copy())
+                        all_temperature_data.append(Detected_temperature.copy())
+                        all_timestamp_data.append(datetime.now().isoformat(timespec='milliseconds'))
 
                         ira_interpolated = SubpageInterpolating(Detected_temperature)
                         frame_count += 1
@@ -131,10 +128,6 @@ def monitor_serial(port='COM3', baud_rate=921600, save_flag=True, run_time=0, sa
                         ira_img_colored = overlay_temperature_values(ira_img_colored, ira_interpolated)
                         cv2.putText(ira_img_colored, f"FPS: {display_fps:.1f}", (10, 20),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-                        if current_time < start_record_time:
-                            cv2.putText(ira_img_colored, "等待開始錄制...", (10, 50),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
                         cv2.imshow('IR Temperature', ira_img_colored)
                         # 若要保存帧，可打开 video_writer.write(...)
@@ -164,13 +157,16 @@ def monitor_serial(port='COM3', baud_rate=921600, save_flag=True, run_time=0, sa
         #     print(f"视频保存至: {video_path}")
         if all_temperature_data and save_flag:
             with open(data_path, 'wb') as f:
-                pickle.dump(all_temperature_data, f)
+                pickle.dump({
+                    "temperature": all_temperature_data,
+                    "timestamp": all_timestamp_data
+                }, f)
             print(f"温度数据保存至: {data_path}")
         cv2.destroyAllWindows()
 
 def main():
     save_flag, run_time, save_dir, save_name = parse_args()
-    monitor_serial(port='COM3', baud_rate=921600, save_flag=save_flag, 
+    monitor_serial(port='/dev/ttyUSB0', baud_rate=921600, save_flag=False, 
                    run_time=run_time, save_dir=save_dir, save_name=save_name)
 
 if __name__ == "__main__":
