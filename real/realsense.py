@@ -152,7 +152,7 @@ def main():
     # 解析命令行参数
     save_flag, run_time, save_dir, save_name = parse_args()
     # 调用录像函数，将参数传递进去
-    record_realsense(save_flag, run_time, save_dir, save_name)
+    record_realsense(False, 0, save_dir, save_name)
 
 if __name__ == "__main__":
     main()
