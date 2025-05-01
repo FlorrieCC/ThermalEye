@@ -68,7 +68,7 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
     total_start_time = time.time()
     out = None
     first_frame_saved = False
-    last_frame = None
+    last_frame_saved = False
 
     ## frame_ts
     # frame_ts_file = None
@@ -95,15 +95,15 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
 
             if save_flag:
                 current_ts = datetime.now()
+                out.write(color_image)
                 if not first_frame_saved:
-                    out.write(color_image)
                     ts_file.write(f"First frame: {current_ts.isoformat()}\n")
                     first_frame_saved = True
-                last_frame = color_image.copy()
-                end_ts = current_ts
 
             cv2.imshow("RealSense", color_image)
             if cv2.waitKey(1) & 0xFF == ord('q'):
+                end_ts = current_ts
+                last_frame_saved = True
                 break
 
     except KeyboardInterrupt:
@@ -112,8 +112,7 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
         print("Error:", e)
     finally:
         if save_flag and out is not None:
-            if last_frame is not None:
-                out.write(last_frame)
+            if last_frame_saved:
                 ts_file.write(f"Last frame:  {end_ts.isoformat()}\n")
             ts_file.close()
             ## frame_ts
@@ -127,6 +126,7 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
 def main():
     save_flag, run_time, save_dir, save_name = parse_args()
     record_realsense(save_flag, run_time, save_dir, save_name)
+    # record_realsense(True, 0, "real_data/0501/", "test")
 
 if __name__ == "__main__":
     main()
