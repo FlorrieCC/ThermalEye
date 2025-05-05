@@ -67,18 +67,13 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
 
     total_start_time = time.time()
     out = None
-    first_frame_saved = False
-    last_frame_saved = False
 
-    ## frame_ts
-    # frame_ts_file = None
     if save_flag:
-        # frame_ts_path = os.path.join(save_dir, f"frame_ts_{save_name}.txt")
-        # frame_ts_file = open(frame_ts_path, "w")
         video_path, ts_path = new_filename(save_dir, save_name)
         out = cv2.VideoWriter(video_path, fourcc, FPS, (FRAME_WIDTH, FRAME_HEIGHT))
         print("开始保存新文件：", video_path)
         ts_file = open(ts_path, "w")
+
 
     try:
         while True:
@@ -96,14 +91,10 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
             if save_flag:
                 current_ts = datetime.now()
                 out.write(color_image)
-                if not first_frame_saved:
-                    ts_file.write(f"First frame: {current_ts.isoformat()}\n")
-                    first_frame_saved = True
-
+                ts_file.write(f"{current_ts.isoformat()}\n")
+                    
             cv2.imshow("RealSense", color_image)
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                end_ts = current_ts
-                last_frame_saved = True
                 break
 
     except KeyboardInterrupt:
@@ -112,12 +103,7 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
         print("Error:", e)
     finally:
         if save_flag and out is not None:
-            if last_frame_saved:
-                ts_file.write(f"Last frame:  {end_ts.isoformat()}\n")
             ts_file.close()
-            ## frame_ts
-            # if frame_ts_file:
-            #     frame_ts_file.close()
 
             out.release()
         pipeline.stop()
@@ -126,7 +112,7 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
 def main():
     save_flag, run_time, save_dir, save_name = parse_args()
     record_realsense(save_flag, run_time, save_dir, save_name)
-    # record_realsense(True, 0, "real_data/0501/", "test")
+    # record_realsense(True, 0, "real_data/0503/", "test")
 
 if __name__ == "__main__":
     main()
