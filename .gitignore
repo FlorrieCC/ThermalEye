@@ -138,6 +138,7 @@ venv.bak/
 seek_data/
 real_data/
 ira_data/
+blink_output/
 
 # Spyder project settings
 .spyderproject

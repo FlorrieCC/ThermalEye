@@ -1,5 +1,5 @@
 '''
-    v8
+    v9
     更新：添加眨眼帧数记录并保存为CSV文件
 '''
 
@@ -13,7 +13,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 
-cap = cv2.VideoCapture('0505/callibration_20250505_161542_482.mp4')
+real_time_mode = False  # ✅ 改成 True 就实时可视化，False 就快速处理
+
+video_path = '/Users/yvonne/Documents/final project/ThermalEye/real_data/0505/callibration_20250505_161542_482.mp4'
+cap = cv2.VideoCapture(video_path)
 detector = FaceMeshDetector(maxFaces=1)
 plotY = LivePlot(640, 360, [25, 55], invert=True)
 
@@ -91,7 +94,7 @@ while True:
                 calibrated = True
                 print(f'[CALIBRATION DONE] Adaptive threshold: {adaptiveThreshold:.2f}')
                 cap.release()
-                cap = cv2.VideoCapture('0505/callibration_20250505_161542_482.mp4')
+                cap = cv2.VideoCapture(video_path)
                 video_start_timestamp = get_beijing_time()
                 continue
         else:
@@ -141,13 +144,15 @@ while True:
     else:
         img = cv2.resize(img, (640, 360))
         imgStack = cvzone.stackImages([img, img], 2, 1)
-
-    cv2.imshow("Blink Detection", imgStack)
-    if cv2.waitKey(max(1, int(frame_time_ms))) & 0xFF == ord('q'):
-        break
+        
+    if real_time_mode:
+        cv2.imshow("Blink Detection", imgStack)
+        if cv2.waitKey(max(1, int(frame_time_ms))) & 0xFF == ord('q'):
+            break
 
 cap.release()
-cv2.destroyAllWindows()
+if real_time_mode:
+    cv2.destroyAllWindows()
 
 print("\nBlink Start Offsets (ms):", blink_start_offsets)
 print("Blink End Offsets (ms):", blink_end_offsets)
