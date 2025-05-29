@@ -245,7 +245,7 @@ if __name__ == "__main__":
     single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0505/callibration_20250505_161542_482.mp4"
 
     # ✅ 如果 MODE = "batch"，设置文件夹路径
-    batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0503"
+    batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0517"
 
     # ✅ 是否开启实时显示（True = 显示窗口，False = 快速处理）
     enable_realtime = False
