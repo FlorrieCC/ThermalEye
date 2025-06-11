@@ -166,7 +166,7 @@ def monitor_serial(port='COM3', baud_rate=921600, save_flag=True, run_time=0, sa
 
 def main():
     save_flag, run_time, save_dir, save_name = parse_args()
-    monitor_serial(port='/dev/ttyUSB0', baud_rate=921600, save_flag=False, 
+    monitor_serial(port='/dev/ttyUSB0', baud_rate=921600, save_flag=save_flag, 
                    run_time=run_time, save_dir=save_dir, save_name=save_name)
 
 if __name__ == "__main__":
