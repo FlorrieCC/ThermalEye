@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import json
+import matplotlib.ticker as ticker
 
 '''
 读取csv
@@ -55,8 +56,8 @@ def process_video(video_path, real_time_mode=False):
     # 校准
     calibrationRatios = []
     calibrationFrames = 100
-    calibrated = False
-    adaptiveThreshold = 0
+    calibrated = True
+    adaptiveThreshold = 40
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_time_ms = 1000 / fps
@@ -84,6 +85,8 @@ def process_video(video_path, real_time_mode=False):
     print(f"[INFO] 视频帧率: {fps} FPS")
     print(f"[INFO] 视频总帧数: {cap.get(cv2.CAP_PROP_FRAME_COUNT)}")
     print(f"[INFO] 视频时长: {cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps:.2f} 秒")
+    
+    video_start_timestamp = get_beijing_time()
 
     while True:
         success, img = cap.read()
@@ -159,13 +162,18 @@ def process_video(video_path, real_time_mode=False):
                     closed_frames = 0
 
                 # ✅ 记录数据
-                if video_start_timestamp and cap.get(cv2.CAP_PROP_POS_FRAMES) > calibrationFrames:
+                # if video_start_timestamp and cap.get(cv2.CAP_PROP_POS_FRAMES) > calibrationFrames:
+                if video_start_timestamp:
                     frame_index = cap.get(cv2.CAP_PROP_POS_FRAMES)
                     offset = frame_index * frame_time_ms
                     recorded_ratios.append(ratioAvg)
                     recorded_timestamps.append(offset)
 
             imgPlot = plotY.update(ratioAvg, color)
+            # ➕ 添加横线表示阈值
+            if calibrated:
+                cv2.line(imgPlot, (0, int(360 - adaptiveThreshold * 3.6)), (640, int(360 - adaptiveThreshold * 3.6)), (0, 0, 255), 2)
+            cv2.putText(imgPlot, f'Blinks: {blinkCounter}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
             img = cv2.resize(img, (640, 360))
             imgStack = cvzone.stackImages([img, imgPlot], 2, 1)
         else:
@@ -187,7 +195,7 @@ def process_video(video_path, real_time_mode=False):
     print("Blink End Frames:", blink_end_frames)
 
     # ✅ 保存数据与绘图
-    output_dir = 'blink_output'
+    output_dir = 'gt_output/0611down'
     os.makedirs(output_dir, exist_ok=True)
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
 
@@ -214,11 +222,12 @@ def process_video(video_path, real_time_mode=False):
     plt.plot(recorded_timestamps, recorded_ratios, label='Ratio Avg', color='blue')
     for start, end in zip(blink_start_offsets, blink_end_offsets):
         plt.axvspan(start, end, color='gray', alpha=0.3)
-
+        
+    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(10000))
     plt.xlabel('Time (ms)')
     plt.ylabel('Eye Aspect Ratio')
     plt.title('Blink Detection Curve with Highlighted Blink Periods')
-    plt.grid(True)
+    plt.grid(False)
     plt.legend()
     img_path = os.path.join(output_dir, f'blink_plot_{video_filename}.png')
     plt.savefig(img_path)
@@ -236,16 +245,51 @@ def process_video(video_path, real_time_mode=False):
     print(f"[SAVED] Blink offsets saved to: {offset_csv_path}")
     
     
+    # ✅ 计算下降和上升的平均时间
+    from scipy.signal import find_peaks
+
+    ratios = np.array(recorded_ratios)
+    timestamps = np.array(recorded_timestamps)
+
+    peaks, _ = find_peaks(ratios, distance=5)
+    valleys, _ = find_peaks(-ratios, distance=5)
+
+    descent_durations = []
+    ascent_durations = []
+
+    for v in valleys:
+        # 找 valley 前的最近 peak（下降）
+        prev_peaks = peaks[peaks < v]
+        if len(prev_peaks) > 0:
+            last_peak = prev_peaks[-1]
+            descent_time = timestamps[v] - timestamps[last_peak]
+            descent_durations.append(descent_time)
+
+        # 找 valley 后的最近 peak（上升）
+        next_peaks = peaks[peaks > v]
+        if len(next_peaks) > 0:
+            next_peak = next_peaks[0]
+            ascent_time = timestamps[next_peak] - timestamps[v]
+            ascent_durations.append(ascent_time)
+
+    # ✅ 打印均值结果
+    if descent_durations:
+        print(f"[INFO] 平均下降时间（高 ➝ 低）: {np.mean(descent_durations):.2f} ms")
+    if ascent_durations:
+        print(f"[INFO] 平均上升时间（低 ➝ 高）: {np.mean(ascent_durations):.2f} ms")
+
+    
+    
 
 if __name__ == "__main__":
     # ✅ 修改这里选择模式："single" 或 "batch"
     MODE = "batch"
 
     # ✅ 如果 MODE = "single"，设置视频路径
-    single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0505/callibration_20250505_161542_482.mp4"
+    single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0611/xx_left_dry_20250611_172131_865.mp4"
 
     # ✅ 如果 MODE = "batch"，设置文件夹路径
-    batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0517"
+    batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0611down"
 
     # ✅ 是否开启实时显示（True = 显示窗口，False = 快速处理）
     enable_realtime = False
