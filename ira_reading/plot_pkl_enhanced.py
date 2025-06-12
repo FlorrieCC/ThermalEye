@@ -93,6 +93,8 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import matplotlib.gridspec as gridspec
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def parse_frame_indices(frame_input, max_index):
     """解析帧输入，支持 '22:70' 和 '22,23,25' 形式"""
@@ -107,24 +109,45 @@ def parse_frame_indices(frame_input, max_index):
     else:
         return []
 
-def plot_selected_frames(images, indices, cmap='viridis', figsize=(10, 8), output_path='selected_frames.pdf'):
-    """仅展示并保存选中的两帧图像"""
-    fig, axs = plt.subplots(len(indices), 1, figsize=figsize)
+def plot_selected_frames(images, raw_frames, indices, cmap='viridis',
+                         figsize=(4, 3),
+                         output_path='/Users/yvonne/Documents/final project/ThermalEye/figure/selected_frames.pdf'):
+    """展示归一化图像，colorbar 对应原始温度值，且与图像完全等高"""
 
-    if len(indices) == 1:
-        axs = [axs]  # 保证 axs 可迭代
+    for img, idx in zip(images, indices):
+        fig, ax = plt.subplots(figsize=figsize)
 
-    for ax, idx in zip(axs, indices):
-        ax.imshow(images[idx], cmap=cmap)
-        ax.set_title(f'Frame {idx}')
+        vmin = np.min(raw_frames[idx])
+        vmax = np.max(raw_frames[idx])
+
+        im = ax.imshow(img, cmap=cmap)
+        # if idx == 555:
+        #     ax.set_title("Local Cold Spot", fontsize=12)
+        # elif idx == 584:
+        #     ax.set_title("Local Hot Spot", fontsize=12)
+        # else:
+        #     ax.set_title(f"Frame {idx}", fontsize=12)
         ax.axis('off')
 
-    plt.tight_layout()
-    plt.savefig(output_path, format='pdf')
-    plt.close()
-    print(f"已保存为PDF: {output_path}")
+        # ✅ 添加等高 colorbar
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="3%", pad=0.2)
 
-def visualize_two_frames_and_save(pkl_path, highlight_frames, resize_shape=(160, 120), cmap='viridis'):
+        cbar = fig.colorbar(im, cax=cax)
+        cbar.set_label('Temperature (°C)', fontsize=26)
+        ticks = np.linspace(0, 255, 5)
+        labels = np.linspace(vmin, vmax, 5)
+        cbar.set_ticks(ticks)
+        cbar.set_ticklabels([f"{l:.1f}" for l in labels])
+        cbar.ax.tick_params(labelsize=26)
+
+        save_path = output_path.replace(".pdf", f"_frame{idx}.pdf")
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"已保存为PDF: {save_path}")
+
+def visualize_two_frames_and_save(pkl_path, highlight_frames,
+                                  resize_shape=(160, 120), cmap='viridis'):
     """主函数：读取PKL、增强图像、仅处理并保存两帧"""
     with open(pkl_path, 'rb') as f:
         data = pickle.load(f)
@@ -136,24 +159,27 @@ def visualize_two_frames_and_save(pkl_path, highlight_frames, resize_shape=(160,
     else:
         raise ValueError("pkl文件格式不正确，应为'dict'或'ndarray'列表")
 
-    enhanced_images = []
-    for frame in frames:
-        mean = np.mean(frame)
-        std = np.std(frame)
-        enhanced = (frame - mean) / (std + 1e-5)
-        norm_enhanced = ((enhanced - enhanced.min()) / (enhanced.max() - enhanced.min()) * 255).astype(np.uint8)
-        resized = cv2.resize(norm_enhanced, resize_shape, interpolation=cv2.INTER_NEAREST)
-        enhanced_images.append(resized)
-
-    indices = parse_frame_indices(highlight_frames, len(enhanced_images))
+    indices = parse_frame_indices(highlight_frames, len(frames))
     if not indices:
         print("未解析出有效帧编号。")
         return
 
-    plot_selected_frames(enhanced_images, indices, cmap=cmap, figsize=(6, 6 * len(indices)))
+    # 只增强选中帧
+    enhanced_images = []
+    for i in indices:
+        mean = np.mean(frames[i])
+        std = np.std(frames[i])
+        enhanced = (frames[i] - mean) / (std + 1e-5)
+        norm_enhanced = ((enhanced - enhanced.min()) /
+                         (enhanced.max() - enhanced.min()) * 255).astype(np.uint8)
+        resized = cv2.resize(norm_enhanced, resize_shape, interpolation=cv2.INTER_NEAREST)
+        enhanced_images.append(resized)
 
-# ✅ 用法
+    plot_selected_frames(enhanced_images, frames, indices, cmap=cmap,
+                         figsize=(6, 6 * len(indices)))
+
+# ✅ 用法示例
 visualize_two_frames_and_save(
-    "D:/Projects/PyCharmProject/AIoT/EyeDetection/0505/callibration_20250505_161542_107.pkl",
+    "/Users/yvonne/Documents/final project/ThermalEye/ira_data/0505/callibration_20250505_161542_107.pkl",
     highlight_frames="555,584"
 )
