@@ -139,8 +139,6 @@ seek_data/
 real_data/
 ira_data/
 blink_output/
-figure/
-gt_output/
 logs/
 checkpoints/
 evaluate_output/
