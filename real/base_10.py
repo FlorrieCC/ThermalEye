@@ -27,7 +27,7 @@ print(offsets['start_offsets'])  # -> list
 print(offsets['end_offsets'])    # -> list
 '''
 
-def process_video(video_path, real_time_mode=False):
+def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt_output'):
     '''
         v9
         更新：添加时实模式，支持快速处理视频
@@ -57,7 +57,7 @@ def process_video(video_path, real_time_mode=False):
     calibrationRatios = []
     calibrationFrames = 100
     calibrated = True
-    adaptiveThreshold = 40
+    adaptiveThreshold = threshold
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_time_ms = 1000 / fps
@@ -195,7 +195,7 @@ def process_video(video_path, real_time_mode=False):
     print("Blink End Frames:", blink_end_frames)
 
     # ✅ 保存数据与绘图
-    output_dir = 'gt_output/0611down'
+    output_dir = output_dir
     os.makedirs(output_dir, exist_ok=True)
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
 
@@ -223,7 +223,7 @@ def process_video(video_path, real_time_mode=False):
     for start, end in zip(blink_start_offsets, blink_end_offsets):
         plt.axvspan(start, end, color='gray', alpha=0.3)
         
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(10000))
+    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(5000))
     plt.xlabel('Time (ms)')
     plt.ylabel('Eye Aspect Ratio')
     plt.title('Blink Detection Curve with Highlighted Blink Periods')
@@ -245,40 +245,6 @@ def process_video(video_path, real_time_mode=False):
     print(f"[SAVED] Blink offsets saved to: {offset_csv_path}")
     
     
-    # ✅ 计算下降和上升的平均时间
-    from scipy.signal import find_peaks
-
-    ratios = np.array(recorded_ratios)
-    timestamps = np.array(recorded_timestamps)
-
-    peaks, _ = find_peaks(ratios, distance=5)
-    valleys, _ = find_peaks(-ratios, distance=5)
-
-    descent_durations = []
-    ascent_durations = []
-
-    for v in valleys:
-        # 找 valley 前的最近 peak（下降）
-        prev_peaks = peaks[peaks < v]
-        if len(prev_peaks) > 0:
-            last_peak = prev_peaks[-1]
-            descent_time = timestamps[v] - timestamps[last_peak]
-            descent_durations.append(descent_time)
-
-        # 找 valley 后的最近 peak（上升）
-        next_peaks = peaks[peaks > v]
-        if len(next_peaks) > 0:
-            next_peak = next_peaks[0]
-            ascent_time = timestamps[next_peak] - timestamps[v]
-            ascent_durations.append(ascent_time)
-
-    # ✅ 打印均值结果
-    if descent_durations:
-        print(f"[INFO] 平均下降时间（高 ➝ 低）: {np.mean(descent_durations):.2f} ms")
-    if ascent_durations:
-        print(f"[INFO] 平均上升时间（低 ➝ 高）: {np.mean(ascent_durations):.2f} ms")
-
-    
     
 
 if __name__ == "__main__":
@@ -286,17 +252,23 @@ if __name__ == "__main__":
     MODE = "batch"
 
     # ✅ 如果 MODE = "single"，设置视频路径
-    single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0611/xx_left_dry_20250611_172131_865.mp4"
+    single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0611down/xx_mild_20250611_181608_190.mp4"
 
     # ✅ 如果 MODE = "batch"，设置文件夹路径
     batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0611down"
 
     # ✅ 是否开启实时显示（True = 显示窗口，False = 快速处理）
     enable_realtime = False
+    
+    # threshold 
+    threshold = 39  # 可调节的阈值
+    
+    # output_dir
+    output_dir = "gt_output/0611down"
 
     if MODE == "single":
         print(f"\n🟢 正在处理单个视频: {single_video_path}")
-        process_video(single_video_path, real_time_mode=enable_realtime)
+        process_video(single_video_path, real_time_mode=enable_realtime, threshold=threshold)
 
     elif MODE == "batch":
         print(f"\n🟢 正在批量处理文件夹: {batch_folder_path}")
@@ -304,7 +276,7 @@ if __name__ == "__main__":
             if filename.endswith(".mp4"):
                 video_path = os.path.join(batch_folder_path, filename)
                 print(f"\n👉 处理: {video_path}")
-                process_video(video_path, real_time_mode=enable_realtime)
+                process_video(video_path, real_time_mode=enable_realtime, threshold=threshold)
 
     else:
         print("❌ MODE 设置错误，请使用 'single' 或 'batch'")
