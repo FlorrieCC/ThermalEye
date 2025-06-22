@@ -142,6 +142,7 @@ blink_output/
 logs/
 checkpoints/
 evaluate_output/
+gt_output/
 
 # Spyder project settings
 .spyderproject
