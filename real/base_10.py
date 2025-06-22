@@ -249,26 +249,26 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
 
 if __name__ == "__main__":
     # ✅ 修改这里选择模式："single" 或 "batch"
-    MODE = "batch"
+    MODE = "single"
 
     # ✅ 如果 MODE = "single"，设置视频路径
-    single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0611down/xx_mild_20250611_181608_190.mp4"
+    single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0618/shy_left_hot_severe_20250619_031634_848.mp4"
 
     # ✅ 如果 MODE = "batch"，设置文件夹路径
-    batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0611down"
+    batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0618"
 
     # ✅ 是否开启实时显示（True = 显示窗口，False = 快速处理）
     enable_realtime = False
     
-    # threshold 
-    threshold = 39  # 可调节的阈值
+    # ✅ threshold 
+    threshold = 37  # 可调节的阈值
     
-    # output_dir
-    output_dir = "gt_output/0611down"
+    # ✅ output_dir
+    output_dir = "gt_output/0618"
 
     if MODE == "single":
         print(f"\n🟢 正在处理单个视频: {single_video_path}")
-        process_video(single_video_path, real_time_mode=enable_realtime, threshold=threshold)
+        process_video(single_video_path, real_time_mode=enable_realtime, threshold=threshold, output_dir=output_dir)
 
     elif MODE == "batch":
         print(f"\n🟢 正在批量处理文件夹: {batch_folder_path}")
@@ -276,7 +276,7 @@ if __name__ == "__main__":
             if filename.endswith(".mp4"):
                 video_path = os.path.join(batch_folder_path, filename)
                 print(f"\n👉 处理: {video_path}")
-                process_video(video_path, real_time_mode=enable_realtime, threshold=threshold)
+                process_video(video_path, real_time_mode=enable_realtime, threshold=threshold, output_dir=output_dir)
 
     else:
         print("❌ MODE 设置错误，请使用 'single' 或 'batch'")
