@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from datetime import datetime
+import cv2
 
 import torch
 from torch.utils.data import Dataset
@@ -67,10 +68,10 @@ class ThermalBlinkDataset(Dataset):
                     pkl_path = os.path.join(pkl_dir, filename)
                     if val_pkl_dir and pkl_path == val_pkl_dir:
                         continue  # 排除验证集文件
-                    match = re.match(r"(.*_\d{8}_\d{4})", filename)
-                    if not match:
-                        continue
-                    fuzzy_key = match.group(1)
+                    base_name = os.path.splitext(filename)[0]  # 去掉 .pkl 后缀
+                    parts = base_name.split('_')
+                    fuzzy_key = parts[-3] + "_" + parts[-2][:4]
+
 
                     # 去 gt_output 的子目录中匹配对应 CSV
                     csv_subdir = os.path.join(csv_root, subfolder)
@@ -118,7 +119,29 @@ class ThermalBlinkDataset(Dataset):
             return {"x": x_seq, "y": y_seq, "timestamp": torch.tensor(timestamps)}
         else:
             return {"x": x_seq, "y": y_seq}
+        
+        
+    def assign_frame_labels(timestamps, blink_start_offsets, blink_end_offsets):
+        """
+        标签方式1：按帧打标签，start ~ end 区间为 1，其他为 0
+        """
+        labels = np.zeros_like(timestamps, dtype=np.float32)
+        for start, end in zip(blink_start_offsets, blink_end_offsets):
+            labels[(timestamps >= start) & (timestamps <= end)] = 1.0
+        return labels
 
+    def assign_sequence_labels(frame_labels, sequence_length=32, stride=16):
+        """
+        标签方式2：基于帧标签生成序列标签。
+        若序列中既有0又有1，则为1；否则为0。
+        """
+        sequence_labels = []
+        for i in range(0, len(frame_labels) - sequence_length + 1, stride):
+            segment = frame_labels[i:i + sequence_length]
+            label = 1.0 if np.any(segment != segment[0]) else 0.0
+            sequence_labels.append(label)
+        return np.array(sequence_labels, dtype=np.float32)
+    
 
 
     def process_sample(self, pkl_path, csv_path, return_timestamps=False):
@@ -141,41 +164,61 @@ class ThermalBlinkDataset(Dataset):
             print(f"[ERROR] CSV 读取失败: {csv_path}\n{e}")
             return None, None, None
 
-        temperature_frames = np.array(data['temperature'])  # [N, 12, 16]
+        # temperature_frames = np.array(data['temperature'])  # [N, 12, 16]
+        raw_frames = np.array(data['temperature'])  # [N, H, W]
+        # ✅ Step A: 计算全序列 enhanced 的全局 min/max
+        enhanced_all = []
+        for frame in raw_frames:
+            blurred = cv2.GaussianBlur(frame, (3, 3), sigmaX=0.5)
+            enhanced = (blurred - np.mean(blurred)) / (np.std(blurred) + 1e-5)
+            enhanced_all.append(enhanced)
+
+        enhanced_stack = np.stack(enhanced_all, axis=0)  # [N, H, W]
+        global_min = enhanced_stack.min()
+        global_max = enhanced_stack.max()
+        print(f"🌡️ 全序列归一化后温度范围: min={global_min:.3f}, max={global_max:.3f}")
+
+        # ✅ Step B: 用 global min/max 进行 clip 和 gamma 拉伸
+        processed_frames = []
+        for enhanced in enhanced_all:
+            clipped = np.clip(enhanced, global_min, global_max)
+            norm_0_1 = (clipped - global_min) / (global_max - global_min)
+            adjusted = np.power(norm_0_1, 0.5)
+            norm = (adjusted * 255).astype(np.uint8)
+            processed_frames.append(norm)
+
+        temperature_frames = np.stack(processed_frames, axis=0)  # [N, H, W]
+
+        
         raw_timestamps = data['timestamp']
         parsed_times = [datetime.fromisoformat(ts) for ts in raw_timestamps]
         start_time = parsed_times[0]
         timestamps = np.array([(t - start_time).total_seconds() * 1000 for t in parsed_times])  # ms
         
-        # Step 1: 裁剪 CSV 的闭眼区间
-        filtered_starts = []
-        filtered_ends = []
-        for start, end in zip(blink_start_offsets, blink_end_offsets):
-            if start >= 1000 and end >= 1000:
-                filtered_starts.append(start)
-                filtered_ends.append(end)
-        blink_start_offsets = filtered_starts
-        blink_end_offsets = filtered_ends
+        # ✅ 合并相邻眨眼段（间隔小于等于1000ms）
+        merged_starts, merged_ends = [], []
+        if blink_start_offsets:
+            cur_start = blink_start_offsets[0]
+            cur_end = blink_end_offsets[0]
+            for i in range(1, len(blink_start_offsets)):
+                next_start = blink_start_offsets[i]
+                next_end = blink_end_offsets[i]
+                if next_start - cur_end <= 1000:
+                    cur_end = max(cur_end, next_end)
+                else:
+                    merged_starts.append(cur_start)
+                    merged_ends.append(cur_end)
+                    cur_start = next_start
+                    cur_end = next_end
+            merged_starts.append(cur_start)
+            merged_ends.append(cur_end)
+            blink_start_offsets = merged_starts
+            blink_end_offsets = merged_ends
 
-        # Step 2: 裁剪帧数据中前1000ms
-        valid_indices = np.where(timestamps >= 1000)[0]
-        timestamps = timestamps[valid_indices]
-        temperature_frames = temperature_frames[valid_indices]
-
+        
         # 帧级标签
-        labels = np.zeros_like(timestamps, dtype=np.float32)
-        for start, end in zip(blink_start_offsets, blink_end_offsets):
-            duration = end - start
-            fade = min(0.5 * duration, 300)  # 自适应渐变区，最多300ms
-
-            for i, t in enumerate(timestamps):
-                if start - fade <= t < start:
-                    labels[i] = max(labels[i], 1 - (start - t) / fade)
-                elif start <= t <= end:
-                    labels[i] = max(labels[i], 1.0)
-                elif end < t <= end + fade:
-                    labels[i] = max(labels[i], 1 - (t - end) / fade)
-
+        labels = self.assign_frame_labels(timestamps, blink_start_offsets, blink_end_offsets)
+        sequence_labels = self.assign_sequence_labels(labels, sequence_length=self.sequence_length, stride=self.sequence_length // 2)
 
         # 中心裁剪
         h, w = temperature_frames[0].shape
@@ -188,6 +231,6 @@ class ThermalBlinkDataset(Dataset):
         X = cropped_frames[..., np.newaxis]  # [N, H', W', 1]
 
         if return_timestamps:
-            return X, labels, timestamps
+            return X, sequence_labels, timestamps
         else:
-            return X, labels, None
+            return X, sequence_labels, None
