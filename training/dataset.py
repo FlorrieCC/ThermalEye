@@ -10,6 +10,8 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 
+USE_SEQUENCE_LABEL = False  # ✅ 控制是否使用序列标签（False = 使用帧标签）
+
 
 class ThermalBlinkDataset(Dataset):
     def __init__(
@@ -55,8 +57,16 @@ class ThermalBlinkDataset(Dataset):
                     continue
                 csv_path = os.path.join(val_csv_dir, matched_csvs[0])
                 X, y, timestamps = self.process_sample(pkl_path, csv_path, return_timestamps=True)
-                for i in range(len(X)):
-                    self.data.append((X[i], y[i], timestamps[i]))
+                stride = self.sequence_length // 2
+                if USE_SEQUENCE_LABEL:
+                    for i in range(0, len(X) - self.sequence_length + 1, stride):
+                        x_seq = X[i:i + self.sequence_length]
+                        y_seq = y[i // stride]
+                        self.data.append((x_seq, y_seq))
+                else:
+                    for i in range(len(X)):
+                        self.data.append((X[i], y[i]))
+
 
         else:
             # 批量加载训练集
@@ -87,10 +97,20 @@ class ThermalBlinkDataset(Dataset):
                         continue
                     csv_path = os.path.join(csv_subdir, matched_csvs[0])
 
-                    X, y, _ = self.process_sample(pkl_path, csv_path)
+                    X, y, timestamps = self.process_sample(pkl_path, csv_path, return_timestamps=True)
+
                     if X is not None:
-                        for i in range(len(X)):
-                            self.data.append((X[i], y[i]))
+                        stride = self.sequence_length // 2
+                        if USE_SEQUENCE_LABEL:
+                            for i in range(0, len(X) - self.sequence_length + 1, stride):
+                                x_seq = X[i:i + self.sequence_length]
+                                y_seq = y[i // stride]
+                                ts_seq = timestamps[i:i + self.sequence_length]
+                                self.data.append((x_seq, y_seq, ts_seq))
+                        else:
+                            for i in range(len(X)):
+                                self.data.append((X[i], y[i], timestamps[i]))
+
 
 
     def __len__(self):
@@ -111,9 +131,15 @@ class ThermalBlinkDataset(Dataset):
             labels.append(torch.tensor(y).float())
             if len(item) == 3:
                 timestamps.append(item[2])  # 只在验证集有
+                
+                
+        if USE_SEQUENCE_LABEL:
+            x_seq = torch.stack(frames, dim=0)   # [T, C, H, W]
+            y_seq = torch.tensor(labels[0]).float()  # 单个标签
+        else:
 
-        x_seq = torch.stack(frames, dim=0)   # [T, C, H, W]
-        y_seq = torch.stack(labels, dim=0)   # [T]
+            x_seq = torch.stack(frames, dim=0)   # [T, C, H, W]
+            y_seq = torch.stack(labels, dim=0)   # [T]
 
         if timestamps:
             return {"x": x_seq, "y": y_seq, "timestamp": torch.tensor(timestamps)}
@@ -121,7 +147,7 @@ class ThermalBlinkDataset(Dataset):
             return {"x": x_seq, "y": y_seq}
         
         
-    def assign_frame_labels(timestamps, blink_start_offsets, blink_end_offsets):
+    def assign_frame_labels(self, timestamps, blink_start_offsets, blink_end_offsets):
         """
         标签方式1：按帧打标签，start ~ end 区间为 1，其他为 0
         """
@@ -130,7 +156,7 @@ class ThermalBlinkDataset(Dataset):
             labels[(timestamps >= start) & (timestamps <= end)] = 1.0
         return labels
 
-    def assign_sequence_labels(frame_labels, sequence_length=32, stride=16):
+    def assign_sequence_labels(self, frame_labels, sequence_length=32, stride=16):
         """
         标签方式2：基于帧标签生成序列标签。
         若序列中既有0又有1，则为1；否则为0。
@@ -160,32 +186,68 @@ class ThermalBlinkDataset(Dataset):
             offsets = {row['key']: json.loads(row['value']) for _, row in df.iterrows()}
             blink_start_offsets = offsets["start_offsets"]
             blink_end_offsets = offsets["end_offsets"]
+            # ✅ 如果起始数量不一致，且 end 的第一帧在 start 之前，则补 0
+            if len(blink_start_offsets) != len(blink_end_offsets):
+                print(f"[WARN] 修正中: {os.path.basename(pkl_path)}")
+                
+                # 👉 如果 end 比 start 多，说明缺少起始，补 0
+                if len(blink_end_offsets) > len(blink_start_offsets):
+                    blink_start_offsets = [0] + blink_start_offsets
+                    print(f"➕ 插入 start=0")
+
+                # 👉 如果 start 比 end 多，说明缺少结束，补最后一帧时间
+                elif len(blink_start_offsets) > len(blink_end_offsets):
+                    last_offset = (datetime.fromisoformat(data['timestamp'][-1]) - datetime.fromisoformat(data['timestamp'][0])).total_seconds() * 1000
+                    blink_end_offsets.append(int(last_offset))
+                    print(f"➕ 补充 end={int(last_offset)}")
+
+                # 再次检查是否对齐
+                if len(blink_start_offsets) != len(blink_end_offsets):
+                    print(f"[ERROR] 修正后仍不一致: {pkl_path}")
+                    print(len(blink_start_offsets), len(blink_end_offsets))
+                    return None, None, None
+
+
+
         except Exception as e:
             print(f"[ERROR] CSV 读取失败: {csv_path}\n{e}")
             return None, None, None
 
         # temperature_frames = np.array(data['temperature'])  # [N, 12, 16]
         raw_frames = np.array(data['temperature'])  # [N, H, W]
-        # ✅ Step A: 计算全序列 enhanced 的全局 min/max
+        
+        # ✅ Step A: 统一预处理并 clip 到固定范围 [-3, 3]
         enhanced_all = []
         for frame in raw_frames:
+            # ① 高斯滤波
             blurred = cv2.GaussianBlur(frame, (3, 3), sigmaX=0.5)
+            # ② 标准差归一化
             enhanced = (blurred - np.mean(blurred)) / (np.std(blurred) + 1e-5)
             enhanced_all.append(enhanced)
 
-        enhanced_stack = np.stack(enhanced_all, axis=0)  # [N, H, W]
-        global_min = enhanced_stack.min()
-        global_max = enhanced_stack.max()
-        print(f"🌡️ 全序列归一化后温度范围: min={global_min:.3f}, max={global_max:.3f}")
+        # ✅ 固定 clip 范围
+        global_min = -3.0
+        global_max = 2.0
+        print(f"🌡️ 使用统一增强范围: min={global_min}, max={global_max}")
 
-        # ✅ Step B: 用 global min/max 进行 clip 和 gamma 拉伸
+        # ✅ Step B: clip + gamma + CLAHE
         processed_frames = []
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(2, 2))  # ④ CLAHE 初始化
+
         for enhanced in enhanced_all:
+            # ✅ Clip 到统一范围
             clipped = np.clip(enhanced, global_min, global_max)
+
+            # ✅ 归一化并 gamma 拉伸
             norm_0_1 = (clipped - global_min) / (global_max - global_min)
             adjusted = np.power(norm_0_1, 0.5)
+
+            # ✅ 映射到 [0, 255] 并 CLAHE
             norm = (adjusted * 255).astype(np.uint8)
-            processed_frames.append(norm)
+            contrast_enhanced = clahe.apply(norm)
+
+            processed_frames.append(contrast_enhanced)
+
 
         temperature_frames = np.stack(processed_frames, axis=0)  # [N, H, W]
 
@@ -217,8 +279,15 @@ class ThermalBlinkDataset(Dataset):
 
         
         # 帧级标签
-        labels = self.assign_frame_labels(timestamps, blink_start_offsets, blink_end_offsets)
-        sequence_labels = self.assign_sequence_labels(labels, sequence_length=self.sequence_length, stride=self.sequence_length // 2)
+        if USE_SEQUENCE_LABEL:
+            labels = self.assign_sequence_labels(
+                self.assign_frame_labels(timestamps, blink_start_offsets, blink_end_offsets),
+                sequence_length=self.sequence_length,
+                stride=self.sequence_length // 2
+            )
+        else:
+            labels = self.assign_frame_labels(timestamps, blink_start_offsets, blink_end_offsets)
+
 
         # 中心裁剪
         h, w = temperature_frames[0].shape
@@ -229,8 +298,74 @@ class ThermalBlinkDataset(Dataset):
         ec = sc + cw
         cropped_frames = temperature_frames[:, sr:er, sc:ec]  # [N, H', W']
         X = cropped_frames[..., np.newaxis]  # [N, H', W', 1]
+        
+        # X = temperature_frames[..., np.newaxis]  # [N, H, W, 1]
+
 
         if return_timestamps:
-            return X, sequence_labels, timestamps
+            return X, labels, timestamps
         else:
-            return X, sequence_labels, None
+            return X, labels, None
+
+
+
+
+
+# import matplotlib.pyplot as plt
+
+# def create_composite(images, cols=50, resize_shape=(160, 120)):
+#     if len(images) == 0:
+#         return None
+#     rows = (len(images) + cols - 1) // cols
+#     width, height = resize_shape
+#     canvas = np.zeros((rows * height, cols * width), dtype=np.uint8)
+#     for idx, img in enumerate(images):
+#         r, c = divmod(idx, cols)
+#         y0, y1 = r * height, (r + 1) * height
+#         x0, x1 = c * width, (c + 1) * width
+#         canvas[y0:y1, x0:x1] = cv2.resize(img, resize_shape, interpolation=cv2.INTER_NEAREST)
+#     return canvas
+
+
+# def visualize_processed_frames(frames, group_size=160, cols=50, resize_shape=(160, 120)):
+#     gap_height = 20
+#     rows = []
+#     for i in range(0, len(frames), group_size):
+#         group = frames[i:i + group_size]
+#         group_canvas = create_composite(group, cols=cols, resize_shape=resize_shape)
+#         rows.append(group_canvas)
+#         gap = np.zeros((gap_height, group_canvas.shape[1]), dtype=np.uint8)
+#         rows.append(gap)
+#     final_canvas = cv2.vconcat(rows[:-1]) if len(rows) > 1 else rows[0]
+#     plt.figure(figsize=(20, 12))
+#     plt.imshow(final_canvas, cmap='jet')
+#     plt.title("Thermal Frames (每160帧一组，组间隔空行)")
+#     plt.axis('off')
+#     plt.tight_layout()
+#     plt.show()
+
+
+# def main():
+#     # ✅ 修改路径为你实际的验证集样本路径
+#     val_pkl_path = "/Users/yvonne/Documents/final project/ThermalEye/ira_data/0505/callibration_20250505_161542_107.pkl"
+#     val_csv_path = "/Users/yvonne/Documents/final project/ThermalEye/gt_output/0505/blink_offsets_callibration_20250505_161542_482.csv"
+
+#     # ✅ 只加载这一对样本用于可视化
+#     dataset = ThermalBlinkDataset(
+#         pkl_root=None, csv_root=None, subfolders=[],
+#         val_pkl_dir=os.path.dirname(val_pkl_path),
+#         val_csv_dir=os.path.dirname(val_csv_path),
+#         is_val=True
+#     )
+
+#     # ✅ 提取原始增强后的帧（从 process_sample 再跑一次）
+#     frames, _, _ = dataset.process_sample(val_pkl_path, val_csv_path, return_timestamps=True)
+
+#     # ✅ frames.shape = [N, H, W, 1]，先 squeeze 并变 list
+#     images = [f.squeeze() for f in frames]  # -> List of [H, W]
+
+#     # ✅ 展示
+#     visualize_processed_frames(images)
+
+# if __name__ == "__main__":
+#     main()
