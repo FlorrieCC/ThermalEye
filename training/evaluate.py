@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, f1_score
 from dataset import ThermalBlinkDataset
 from constants import *
 from models.get_model import get_model
@@ -9,9 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+
 @torch.no_grad()
-def extract_blink_segments(sequence, threshold=0.7, min_len=3):
-    """提取预测值大于 threshold 的连续闭眼段。"""
+def extract_blink_segments(sequence, threshold=0.5, min_len=3):
     segments = []
     start = None
     for i, val in enumerate(sequence):
@@ -25,6 +25,7 @@ def extract_blink_segments(sequence, threshold=0.7, min_len=3):
     if start is not None and len(sequence) - start >= min_len:
         segments.append((start, len(sequence) - 1))
     return segments
+
 
 def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
     matched_pred = set()
@@ -61,6 +62,7 @@ def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
         "mean_end_offset": np.mean(end_offsets) if end_offsets else 0,
     }
 
+
 def evaluate_model(checkpoint_path):
     # 1. 加载模型
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
@@ -77,8 +79,6 @@ def evaluate_model(checkpoint_path):
         val_csv_dir=VAL_CSV_DIR,
         is_val=True,
         center_size=CENTER_SIZE,
-        normalize=True,
-        std_enhance=True
     )
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
 
@@ -91,8 +91,8 @@ def evaluate_model(checkpoint_path):
         y_seq = y_seq.squeeze(0).numpy()       # [T]
 
         with torch.no_grad():
-            logits = model(x_seq.unsqueeze(0)).squeeze(0)  # [T]
-            probs = torch.sigmoid(logits).numpy()          # ← sigmoid变成概率
+            logits = model(x_seq.unsqueeze(0)).squeeze(0)
+            probs = torch.sigmoid(logits).numpy()  # ← 在这里加 sigmoid
 
         all_preds.extend(probs)
         all_labels.extend(y_seq)
@@ -107,15 +107,23 @@ def evaluate_model(checkpoint_path):
     print(f"✅ MAE: {mae:.4f}")
     print(f"✅ MSE: {mse:.4f}")
 
-    # 4. 段级评估
-    # 打印分布统计信息
-    print(f"[DEBUG] Pred stats: min={all_preds.min():.4f}, max={all_preds.max():.4f}, mean={all_preds.mean():.4f}")
-    print(
-        f"[DEBUG] #>0.7: {(all_preds > 0.7).sum()} | <0.3: {(all_preds < 0.3).sum()} | in (0.3~0.7): {((all_preds > 0.3) & (all_preds < 0.7)).sum()}")
+    # 4. 二分类评估（用 0.5 阈值）
+    bin_preds = (all_preds >= 0.5).astype(int)
+    bin_labels = (all_labels >= 0.5).astype(int)
 
-    # 段级评估（用闭眼段预测）
-    pred_segments = extract_blink_segments(all_preds, threshold=0.7)
-    gt_segments = extract_blink_segments(all_labels, threshold=0.7)
+    acc = accuracy_score(bin_labels, bin_preds)
+    f1 = f1_score(bin_labels, bin_preds)
+
+    print("\n📊 二分类评估：")
+    print(f"✅ Accuracy : {acc:.4f}")
+    print(f"✅ F1 Score : {f1:.4f}")
+
+    # 5. 段级评估
+    print(f"[DEBUG] Pred stats: min={all_preds.min():.4f}, max={all_preds.max():.4f}, mean={all_preds.mean():.4f}")
+    print(f"[DEBUG] >0.5: {(all_preds > 0.5).sum()} | <0.5: {(all_preds < 0.5).sum()}")
+
+    pred_segments = extract_blink_segments(all_preds, threshold=0.5)
+    gt_segments = extract_blink_segments(all_labels, threshold=0.5)
 
     print("\n📦 段级眨眼评估：")
     print("  - 预测眨眼段数量 :", len(pred_segments))
@@ -129,15 +137,15 @@ def evaluate_model(checkpoint_path):
     print(f"  - Start Offset   : {metrics['mean_start_offset']:.2f} frames")
     print(f"  - End Offset     : {metrics['mean_end_offset']:.2f} frames")
 
-    # 5. 可视化
+    # 6. 可视化
     plt.figure(figsize=(12, 4))
     plt.plot(all_labels, label="Groundtruth", color="black")
-    plt.plot(all_preds, label="Predicted", color="blue")
+    plt.plot(all_preds, label="Predicted", color="blue",alpha=0.7)
     plt.fill_between(range(len(all_preds)), 0, 1,
-                     where=all_preds > 0.7,
+                     where=all_preds > 0.5,
                      color='red', alpha=0.15, label='Predicted Closed')
     plt.fill_between(range(len(all_preds)), 0, 1,
-                     where=all_preds < 0.3,
+                     where=all_preds < 0.5,
                      color='green', alpha=0.15, label='Predicted Open')
     plt.title("Blink Probability Prediction")
     plt.xlabel("Frame Index")
