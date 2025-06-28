@@ -15,15 +15,15 @@ USE_SEQUENCE_LABEL = False  # ✅ 控制是否使用序列标签（False = 使�
 
 class ThermalBlinkDataset(Dataset):
     def __init__(
-        self,
-        pkl_root: str,
-        csv_root: str,
-        subfolders: list,
-        val_pkl_dir: str = None,
-        val_csv_dir: str = None,
-        is_val: bool = False,
-        center_size: tuple = (12, 16),
-        sequence_length: int = 32
+            self,
+            pkl_root: str,
+            csv_root: str,
+            subfolders: list,
+            val_pkl_dir: str = None,
+            val_csv_dir: str = None,
+            is_val: bool = False,
+            center_size: tuple = (12, 16),
+            sequence_length: int = 32
     ):
         """
         Args:
@@ -82,7 +82,6 @@ class ThermalBlinkDataset(Dataset):
                     parts = base_name.split('_')
                     fuzzy_key = parts[-3] + "_" + parts[-2][:4]
 
-
                     # 去 gt_output 的子目录中匹配对应 CSV
                     csv_subdir = os.path.join(csv_root, subfolder)
                     if not os.path.exists(csv_subdir):
@@ -111,8 +110,6 @@ class ThermalBlinkDataset(Dataset):
                             for i in range(len(X)):
                                 self.data.append((X[i], y[i], timestamps[i]))
 
-
-
     def __len__(self):
         return len(self.data) - self.sequence_length + 1
 
@@ -131,22 +128,20 @@ class ThermalBlinkDataset(Dataset):
             labels.append(torch.tensor(y).float())
             if len(item) == 3:
                 timestamps.append(item[2])  # 只在验证集有
-                
-                
+
         if USE_SEQUENCE_LABEL:
-            x_seq = torch.stack(frames, dim=0)   # [T, C, H, W]
+            x_seq = torch.stack(frames, dim=0)  # [T, C, H, W]
             y_seq = torch.tensor(labels[0]).float()  # 单个标签
         else:
 
-            x_seq = torch.stack(frames, dim=0)   # [T, C, H, W]
-            y_seq = torch.stack(labels, dim=0)   # [T]
+            x_seq = torch.stack(frames, dim=0)  # [T, C, H, W]
+            y_seq = torch.stack(labels, dim=0)  # [T]
 
         if timestamps:
             return {"x": x_seq, "y": y_seq, "timestamp": torch.tensor(timestamps)}
         else:
             return {"x": x_seq, "y": y_seq}
-        
-        
+
     def assign_frame_labels(self, timestamps, blink_start_offsets, blink_end_offsets):
         """
         标签方式1：按帧打标签，start ~ end 区间为 1，其他为 0
@@ -167,8 +162,6 @@ class ThermalBlinkDataset(Dataset):
             label = 1.0 if np.any(segment != segment[0]) else 0.0
             sequence_labels.append(label)
         return np.array(sequence_labels, dtype=np.float32)
-    
-
 
     def process_sample(self, pkl_path, csv_path, return_timestamps=False):
         try:
@@ -189,7 +182,7 @@ class ThermalBlinkDataset(Dataset):
             # ✅ 如果起始数量不一致，且 end 的第一帧在 start 之前，则补 0
             if len(blink_start_offsets) != len(blink_end_offsets):
                 print(f"[WARN] 修正中: {os.path.basename(pkl_path)}")
-                
+
                 # 👉 如果 end 比 start 多，说明缺少起始，补 0
                 if len(blink_end_offsets) > len(blink_start_offsets):
                     blink_start_offsets = [0] + blink_start_offsets
@@ -197,7 +190,8 @@ class ThermalBlinkDataset(Dataset):
 
                 # 👉 如果 start 比 end 多，说明缺少结束，补最后一帧时间
                 elif len(blink_start_offsets) > len(blink_end_offsets):
-                    last_offset = (datetime.fromisoformat(data['timestamp'][-1]) - datetime.fromisoformat(data['timestamp'][0])).total_seconds() * 1000
+                    last_offset = (datetime.fromisoformat(data['timestamp'][-1]) - datetime.fromisoformat(
+                        data['timestamp'][0])).total_seconds() * 1000
                     blink_end_offsets.append(int(last_offset))
                     print(f"➕ 补充 end={int(last_offset)}")
 
@@ -215,7 +209,7 @@ class ThermalBlinkDataset(Dataset):
 
         # temperature_frames = np.array(data['temperature'])  # [N, 12, 16]
         raw_frames = np.array(data['temperature'])  # [N, H, W]
-        
+
         # ✅ Step A: 统一预处理并 clip 到固定范围 [-3, 3]
         enhanced_all = []
         for frame in raw_frames:
@@ -248,15 +242,13 @@ class ThermalBlinkDataset(Dataset):
 
             processed_frames.append(contrast_enhanced)
 
-
         temperature_frames = np.stack(processed_frames, axis=0)  # [N, H, W]
 
-        
         raw_timestamps = data['timestamp']
         parsed_times = [datetime.fromisoformat(ts) for ts in raw_timestamps]
         start_time = parsed_times[0]
         timestamps = np.array([(t - start_time).total_seconds() * 1000 for t in parsed_times])  # ms
-        
+
         # ✅ 合并相邻眨眼段（间隔小于等于1000ms）
         merged_starts, merged_ends = [], []
         if blink_start_offsets:
@@ -277,7 +269,6 @@ class ThermalBlinkDataset(Dataset):
             blink_start_offsets = merged_starts
             blink_end_offsets = merged_ends
 
-        
         # 帧级标签
         if USE_SEQUENCE_LABEL:
             labels = self.assign_sequence_labels(
@@ -288,7 +279,6 @@ class ThermalBlinkDataset(Dataset):
         else:
             labels = self.assign_frame_labels(timestamps, blink_start_offsets, blink_end_offsets)
 
-
         # 中心裁剪
         h, w = temperature_frames[0].shape
         ch, cw = self.center_size
@@ -298,18 +288,13 @@ class ThermalBlinkDataset(Dataset):
         ec = sc + cw
         cropped_frames = temperature_frames[:, sr:er, sc:ec]  # [N, H', W']
         X = cropped_frames[..., np.newaxis]  # [N, H', W', 1]
-        
-        # X = temperature_frames[..., np.newaxis]  # [N, H, W, 1]
 
+        # X = temperature_frames[..., np.newaxis]  # [N, H, W, 1]
 
         if return_timestamps:
             return X, labels, timestamps
         else:
             return X, labels, None
-
-
-
-
 
 # import matplotlib.pyplot as plt
 

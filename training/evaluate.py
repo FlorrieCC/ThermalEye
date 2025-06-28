@@ -1,25 +1,21 @@
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, f1_score
 from dataset import ThermalBlinkDataset
 from constants import *
 from models.get_model import get_model
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from model import BlinkClassifier 
+
 
 @torch.no_grad()
-
-def extract_segments(sequence, threshold=0.1, upper_threshold=0.9, min_len=3):
-    """
-    提取处于过渡区间（例如0.1~0.9）内的连续段，作为眨眼过程段。
-    """
+def extract_blink_segments(sequence, threshold=0.5, min_len=3):
     segments = []
     start = None
     for i, val in enumerate(sequence):
-        if threshold < val < upper_threshold:
+        if val >= threshold:
             if start is None:
                 start = i
         else:
@@ -30,10 +26,8 @@ def extract_segments(sequence, threshold=0.1, upper_threshold=0.9, min_len=3):
         segments.append((start, len(sequence) - 1))
     return segments
 
+
 def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
-    """
-    比较预测段和 GT 段，计算 Precision, Recall, F1, 起止偏差, IoU。
-    """
     matched_pred = set()
     matched_gt = set()
     ious = []
@@ -68,6 +62,7 @@ def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
         "mean_end_offset": np.mean(end_offsets) if end_offsets else 0,
     }
 
+
 def evaluate_model(checkpoint_path):
     # 1. 加载模型
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
@@ -75,7 +70,7 @@ def evaluate_model(checkpoint_path):
     model.load_state_dict(checkpoint)
     model.eval()
 
-    # 2. 加载验证集
+    # 2. 验证集
     val_dataset = ThermalBlinkDataset(
         pkl_root=PKL_ROOT,
         csv_root=CSV_ROOT,
@@ -89,74 +84,79 @@ def evaluate_model(checkpoint_path):
 
     all_preds = []
     all_labels = []
-    
 
     for batch in val_loader:
-        x_seq, y_seq = batch["x"], batch["y"]  # x: [1, T, C, H, W], y: [1, T]
+        x_seq, y_seq = batch["x"], batch["y"]  # [1, T, C, H, W], [1, T]
         x_seq = x_seq.squeeze(0)               # [T, C, H, W]
         y_seq = y_seq.squeeze(0).numpy()       # [T]
 
         with torch.no_grad():
-            probs = model(x_seq.unsqueeze(0)).squeeze(0).numpy()  # [T]
-            print("🔍 Predicted probs:", np.round(probs, 3))  # 只保留3位小数打印方便
-            print("🔍 Groundtruth    :", np.round(y_seq, 3))
-
+            logits = model(x_seq.unsqueeze(0)).squeeze(0)
+            probs = torch.sigmoid(logits).numpy()  # ← 在这里加 sigmoid
 
         all_preds.extend(probs)
         all_labels.extend(y_seq)
-        
 
-    # 3. 评估指标
-    print("🔍 回归 & 段级评估结果：")   
-
-    # 转为 numpy array
-    all_labels = np.array(all_labels)
     all_preds = np.array(all_preds)
+    all_labels = np.array(all_labels)
 
-    # 回归指标
+    # 3. 回归评估
     mae = mean_absolute_error(all_labels, all_preds)
     mse = mean_squared_error(all_labels, all_preds)
-    print(f"✅ MAE: {mae:.4f} | MSE: {mse:.4f}")
+    print("\n🔍 回归评估指标：")
+    print(f"✅ MAE: {mae:.4f}")
+    print(f"✅ MSE: {mse:.4f}")
 
+    # 4. 二分类评估（用 0.5 阈值）
+    bin_preds = (all_preds >= 0.5).astype(int)
+    bin_labels = (all_labels >= 0.5).astype(int)
 
-    # 分类指标
-    # 提取段
-    pred_segments = extract_segments(all_preds)
-    gt_segments = extract_segments(all_labels)
-    
-    print("Number of predicted blink segments:", len(pred_segments))
-    print("Number of ground truth blink segments:", len(gt_segments))
+    acc = accuracy_score(bin_labels, bin_preds)
+    f1 = f1_score(bin_labels, bin_preds)
 
+    print("\n📊 二分类评估：")
+    print(f"✅ Accuracy : {acc:.4f}")
+    print(f"✅ F1 Score : {f1:.4f}")
 
+    # 5. 段级评估
+    print(f"[DEBUG] Pred stats: min={all_preds.min():.4f}, max={all_preds.max():.4f}, mean={all_preds.mean():.4f}")
+    print(f"[DEBUG] >0.5: {(all_preds > 0.5).sum()} | <0.5: {(all_preds < 0.5).sum()}")
+
+    pred_segments = extract_blink_segments(all_preds, threshold=0.5)
+    gt_segments = extract_blink_segments(all_labels, threshold=0.5)
+
+    print("\n📦 段级眨眼评估：")
+    print("  - 预测眨眼段数量 :", len(pred_segments))
+    print("  - GT眨眼段数量   :", len(gt_segments))
 
     metrics = compute_segment_metrics(pred_segments, gt_segments)
+    print(f"  - Precision      : {metrics['precision']:.4f}")
+    print(f"  - Recall         : {metrics['recall']:.4f}")
+    print(f"  - F1 Score       : {metrics['f1']:.4f}")
+    print(f"  - Mean IoU       : {metrics['mean_iou']:.4f}")
+    print(f"  - Start Offset   : {metrics['mean_start_offset']:.2f} frames")
+    print(f"  - End Offset     : {metrics['mean_end_offset']:.2f} frames")
 
-    print("📊 段级匹配评估结果：")
-    print(f"- Precision: {metrics['precision']:.4f}")
-    print(f"- Recall:    {metrics['recall']:.4f}")
-    print(f"- F1 Score:  {metrics['f1']:.4f}")
-    print(f"- Mean IoU:  {metrics['mean_iou']:.4f}")
-    print(f"- Start Offset: {metrics['mean_start_offset']:.2f} frames")
-    print(f"- End Offset:   {metrics['mean_end_offset']:.2f} frames")
-
-
-
-    # 4. 可视化预测 vs GT（前一段）
+    # 6. 可视化
     plt.figure(figsize=(12, 4))
     plt.plot(all_labels, label="Groundtruth", color="black")
-    plt.plot(all_preds, label="Predicted", color="blue")
+    plt.plot(all_preds, label="Predicted", color="blue",alpha=0.7)
     plt.fill_between(range(len(all_preds)), 0, 1,
-                     where=np.array(all_preds) > 0.5,
-                     color='gray', alpha=0.2, label='Predicted Blink')
+                     where=all_preds > 0.5,
+                     color='red', alpha=0.15, label='Predicted Closed')
+    plt.fill_between(range(len(all_preds)), 0, 1,
+                     where=all_preds < 0.5,
+                     color='green', alpha=0.15, label='Predicted Open')
     plt.title("Blink Probability Prediction")
     plt.xlabel("Frame Index")
-    plt.ylabel("Blink Probability")
+    plt.ylabel("Predicted Blink Probability")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     os.makedirs("evaluate_output", exist_ok=True)
     plt.savefig("evaluate_output/blink_prediction_curve.png")
-    print("📈 预测曲线已保存至 evaluate_output/blink_prediction_curve.png")
+    print("\n📈 可视化图已保存至 evaluate_output/blink_prediction_curve.png")
+
 
 if __name__ == '__main__':
     evaluate_model(f"{CHECKPOINT_PATH}/tcn_final.pth")
