@@ -25,19 +25,10 @@ def main():
         val_csv_dir=VAL_CSV_DIR,
         is_val=False,
         center_size=CENTER_SIZE,
-        normalize=True,
-        std_enhance=True
     )
     # ThermalBlinkDataset.visualize_in_dataset(dataset)
 
     print(f"✅ 数据集加载完毕，共 {len(dataset)} 帧")
-    print("\n==== [DEBUG] 样本详细信息（前3条）====")
-    for i in range(3):
-        sample = dataset[i]
-        if "timestamp" in sample:
-            print(f"\n第 {i + 1} 个样本时间戳: {sample['timestamp']:.2f} ms, 标签: {sample['y'].tolist()}")
-        else:
-            print(f"\n第 {i + 1} 个样本 标签: {sample['y'].tolist()}")
 
     # Ground truth 验证
     print("\n==== [DEBUG] Ground Truth 区间验证（使用验证集）====")

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 import cv2
-
+from constants import *
 import torch
 from torch.utils.data import Dataset
 
@@ -23,7 +23,7 @@ class ThermalBlinkDataset(Dataset):
             val_csv_dir: str = None,
             is_val: bool = False,
             center_size: tuple = (12, 16),
-            sequence_length: int = 32
+            sequence_length: int = SEQ_LEN
     ):
         """
         Args:
