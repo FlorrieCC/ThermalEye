@@ -62,6 +62,22 @@ def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
         "mean_end_offset": np.mean(end_offsets) if end_offsets else 0,
     }
 
+def extract_window_segments(labels, threshold=0.5, min_len=1):
+    # labels: 窗口级概率或标签
+    segments = []
+    start = None
+    for i, val in enumerate(labels):
+        if val >= threshold:
+            if start is None:
+                start = i
+        else:
+            if start is not None and i - start >= min_len:
+                segments.append((start, i - 1))
+                start = None
+    if start is not None and len(labels) - start >= min_len:
+        segments.append((start, len(labels) - 1))
+    return segments
+
 
 def evaluate_model(checkpoint_path):
     # 1. 加载模型
@@ -80,12 +96,22 @@ def evaluate_model(checkpoint_path):
         is_val=True,
         center_size=CENTER_SIZE,
     )
+<<<<<<< Updated upstream
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
+=======
+    val_loader = DataLoader(
+    val_dataset,
+    batch_size=1,              # 每次读一条完整序列
+    shuffle=False,
+    num_workers=0             # eval 通常单进程就够
+)
+>>>>>>> Stashed changes
 
     all_preds = []
     all_labels = []
 
     for batch in val_loader:
+<<<<<<< Updated upstream
         x_seq, y_seq = batch["x"], batch["y"]  # [1, T, C, H, W], [1, T]
         x_seq = x_seq.squeeze(0)               # [T, C, H, W]
         y_seq = y_seq.squeeze(0).numpy()       # [T]
@@ -94,8 +120,16 @@ def evaluate_model(checkpoint_path):
             logits = model(x_seq.unsqueeze(0)).squeeze(0)
             probs = torch.sigmoid(logits).numpy()  # ← 在这里加 sigmoid
 
+=======
+        x = batch["x"].to(device)  # [B, C, H, W]
+        y = batch["y"].to(device)  # [B]
+        with torch.no_grad():
+            logits = model(x)  # [B, 1] 或 [B]
+            probs = torch.sigmoid(logits).squeeze(-1).cpu().numpy()  # [B]
+        y = y.cpu().numpy()
+>>>>>>> Stashed changes
         all_preds.extend(probs)
-        all_labels.extend(y_seq)
+        all_labels.extend(y)
 
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
@@ -121,14 +155,19 @@ def evaluate_model(checkpoint_path):
     # 5. 段级评估
     print(f"[DEBUG] Pred stats: min={all_preds.min():.4f}, max={all_preds.max():.4f}, mean={all_preds.mean():.4f}")
     print(f"[DEBUG] >0.5: {(all_preds > 0.5).sum()} | <0.5: {(all_preds < 0.5).sum()}")
-
-    pred_segments = extract_blink_segments(all_preds, threshold=0.5)
-    gt_segments = extract_blink_segments(all_labels, threshold=0.5)
-
-    print("\n📦 段级眨眼评估：")
+    
+    if WINDOW_MODE:
+        print("\n📦 窗口级眨眼段评估：")
+        pred_segments = extract_window_segments(all_preds, threshold=0.5)
+        gt_segments = extract_window_segments(all_labels, threshold=0.5)
+    else:
+        print("\n📦 帧级眨眼段评估：")
+        pred_segments = extract_blink_segments(all_preds, threshold=0.5)
+        gt_segments = extract_blink_segments(all_labels, threshold=0.5)
+    
     print("  - 预测眨眼段数量 :", len(pred_segments))
     print("  - GT眨眼段数量   :", len(gt_segments))
-
+    
     metrics = compute_segment_metrics(pred_segments, gt_segments)
     print(f"  - Precision      : {metrics['precision']:.4f}")
     print(f"  - Recall         : {metrics['recall']:.4f}")
@@ -138,20 +177,35 @@ def evaluate_model(checkpoint_path):
     print(f"  - End Offset     : {metrics['mean_end_offset']:.2f} frames")
 
     # 6. 可视化
-    plt.figure(figsize=(12, 4))
-    plt.plot(all_labels, label="Groundtruth", color="black")
-    plt.plot(all_preds, label="Predicted", color="blue",alpha=0.7)
-    plt.fill_between(range(len(all_preds)), 0, 1,
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
+    
+    # 上图：Groundtruth
+    ax1.plot(all_labels, label="Groundtruth", color="black")
+    ax1.fill_between(range(len(all_labels)), 0, 1,
+                     where=all_labels > 0.5,
+                     color='red', alpha=0.2, label='Closed')
+    ax1.fill_between(range(len(all_labels)), 0, 1,
+                     where=all_labels <= 0.5,
+                     color='green', alpha=0.1, label='Open')
+    ax1.set_ylabel("Groundtruth")
+    ax1.set_title("Groundtruth (window)" if WINDOW_MODE else "Groundtruth (frame)")
+    ax1.legend()
+    ax1.grid(True)
+    
+    # 下图：Predicted
+    ax2.plot(all_preds, label="Predicted", color="blue", alpha=0.7)
+    ax2.fill_between(range(len(all_preds)), 0, 1,
                      where=all_preds > 0.5,
-                     color='red', alpha=0.15, label='Predicted Closed')
-    plt.fill_between(range(len(all_preds)), 0, 1,
-                     where=all_preds < 0.5,
-                     color='green', alpha=0.15, label='Predicted Open')
-    plt.title("Blink Probability Prediction")
-    plt.xlabel("Frame Index")
-    plt.ylabel("Predicted Blink Probability")
-    plt.legend()
-    plt.grid(True)
+                     color='red', alpha=0.2, label='Predicted Closed')
+    ax2.fill_between(range(len(all_preds)), 0, 1,
+                     where=all_preds <= 0.5,
+                     color='green', alpha=0.1, label='Predicted Open')
+    ax2.set_xlabel("Window Index" if WINDOW_MODE else "Frame Index")
+    ax2.set_ylabel("Predicted")
+    ax2.set_title("Predicted (window)" if WINDOW_MODE else "Predicted (frame)")
+    ax2.legend()
+    ax2.grid(True)
+    
     plt.tight_layout()
     os.makedirs("evaluate_output", exist_ok=True)
     plt.savefig("evaluate_output/blink_prediction_curve.png")

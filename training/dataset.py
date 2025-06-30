@@ -55,6 +55,7 @@ class ThermalBlinkDataset(Dataset):
                 ]
                 if not matched_csvs:
                     continue
+<<<<<<< Updated upstream
                 csv_path = os.path.join(val_csv_dir, matched_csvs[0])
                 X, y, timestamps = self.process_sample(pkl_path, csv_path, return_timestamps=True)
                 stride = self.sequence_length // 2
@@ -66,6 +67,36 @@ class ThermalBlinkDataset(Dataset):
                 else:
                     for i in range(len(X)):
                         self.data.append((X[i], y[i]))
+=======
+                csv_path = os.path.join(val_csv_dir, matched[0])
+                frames, labels, timestamps = self.process_sample(pkl_path, csv_path, return_timestamps=True)
+                if frames is not None:
+                    N = frames.shape[0]
+                    if WINDOW_MODE:
+                        for i in range(0, N - FRAME_STACK_SIZE + 1, FRAME_STACK_SIZE):
+                            window = frames[i:i+FRAME_STACK_SIZE].squeeze(-1)  # [6, H, W]
+                            label = float(np.any(labels[i:i+FRAME_STACK_SIZE] == 1.0))
+                            self.data.append((window, label, timestamps[i:i+FRAME_STACK_SIZE]))
+                    else:
+                        for i in range(N):
+                            frame = frames[i].squeeze(-1)  # [H, W]
+                            label = labels[i]
+                            self.data.append((frame, label, timestamps[i]))
+        else:
+            # 加载训练集
+            for sub in subfolders:
+                pkl_dir = os.path.join(pkl_root, sub)
+                if not os.path.isdir(pkl_dir):
+                    continue
+                for fn in os.listdir(pkl_dir):
+                    if not fn.endswith(".pkl"):
+                        continue
+                    pkl_path = os.path.join(pkl_dir, fn)
+                    if val_pkl_dir and pkl_path == val_pkl_dir:
+                        continue
+                    parts = os.path.splitext(fn)[0].split("_")
+                    key = parts[-3] + "_" + parts[-2][:4]
+>>>>>>> Stashed changes
 
 
         else:
@@ -94,6 +125,7 @@ class ThermalBlinkDataset(Dataset):
                     if not matched_csvs:
                         print(f"[WARN] 未匹配到 CSV: {fuzzy_key} in {csv_subdir}")
                         continue
+<<<<<<< Updated upstream
                     csv_path = os.path.join(csv_subdir, matched_csvs[0])
 
                     X, y, timestamps = self.process_sample(pkl_path, csv_path, return_timestamps=True)
@@ -109,12 +141,43 @@ class ThermalBlinkDataset(Dataset):
                         else:
                             for i in range(len(X)):
                                 self.data.append((X[i], y[i], timestamps[i]))
+=======
+                    csv_path = os.path.join(csv_subdir, matched[0])
+                    frames, labels, _ = self.process_sample(pkl_path, csv_path, return_timestamps=False)
+                    if frames is not None:
+                        N = frames.shape[0]
+                        if WINDOW_MODE:
+                            for i in range(0, N - FRAME_STACK_SIZE + 1, FRAME_STACK_SIZE):
+                                window = frames[i:i+FRAME_STACK_SIZE].squeeze(-1)  # [6, H, W]
+                                label = float(np.any(labels[i:i+FRAME_STACK_SIZE] == 1.0))
+                                self.data.append((window, label, None))
+                        else:
+                            for i in range(N):
+                                frame = frames[i].squeeze(-1)  # [H, W]
+                                label = labels[i]
+                                self.data.append((frame, label, None))
+>>>>>>> Stashed changes
 
     def __len__(self):
         return len(self.data) - self.sequence_length + 1
 
     def __getitem__(self, idx):
+<<<<<<< Updated upstream
         seq_len = self.sequence_length
+=======
+        data = self.data[idx]
+        if WINDOW_MODE:
+            x, y, _ = data  # x: [T, H, W], y: [T]
+            x = torch.tensor(x, dtype=torch.float32)  # [T, H, W]
+            y = torch.tensor(y, dtype=torch.float32)  # [T]
+            return {"x": x, "y": y}
+        else:
+            x, y, _ = data  # x: [H, W]
+            return {
+                "x": torch.tensor(x, dtype=torch.float32).unsqueeze(0),  # [1, H, W]
+                "y": torch.tensor(y, dtype=torch.float32)
+            }
+>>>>>>> Stashed changes
 
         if idx + seq_len > len(self.data):
             idx = len(self.data) - seq_len
