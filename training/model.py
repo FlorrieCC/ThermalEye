@@ -3,11 +3,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from torchmetrics import F1Score 
 from models.get_model import get_model
-<<<<<<< Updated upstream
-from constants import MODEL_NAME, LEARNING_RATE
-=======
 from constants import *
->>>>>>> Stashed changes
 import numpy as np
 
 
@@ -15,20 +11,6 @@ class BlinkClassifier(pl.LightningModule):
     def __init__(self, lr=1e-4, pos_weight=POS_WEIGHT):
         super().__init__()
         self.save_hyperparameters(ignore=["train_dataloader"])
-<<<<<<< Updated upstream
-
-        self.model = get_model(MODEL_NAME)
-        self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]))  # 替换为带正样本权重的loss
-
-        # Evaluation metrics
-        self.train_mae = MeanAbsoluteError()
-        self.train_mse = MeanSquaredError()
-        self.val_mae = MeanAbsoluteError()
-        self.val_mse = MeanSquaredError()
-
-    def forward(self, x):
-        return self.model(x)  # 输出logits，不加sigmoid
-=======
         self.model = get_model(MODEL_NAME)
 
         self.register_buffer("target_device", torch.tensor([]))
@@ -48,24 +30,18 @@ class BlinkClassifier(pl.LightningModule):
         out = self.model(x)  
         return out
 
->>>>>>> Stashed changes
 
     def training_step(self, batch, batch_idx):
         x, y = batch["x"], batch["y"]
         logits = self(x)
+        y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
         loss = self.loss_fn(logits, y)
-
         probs = torch.sigmoid(logits)
         preds = (probs > 0.5).long() 
         self.train_f1.update(preds, y.long())  # y 必须是整数类型（0/1）
         self.log("train_loss", loss, prog_bar=True)
-<<<<<<< Updated upstream
-        self.train_mae.update(probs, y)
-        self.train_mse.update(probs, y)
-=======
         lr = self.trainer.optimizers[0].param_groups[0]['lr']
         self.log("lr", lr, prog_bar=True, on_step=True, on_epoch=True)
->>>>>>> Stashed changes
 
         # Debug: 预测值统计
         self.print(f"[TRAIN] Mean Pred: {probs.mean():.4f}, Std: {probs.std():.4f}")

@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, f1_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, accuracy_score, f1_score, confusion_matrix, recall_score, precision_score
 from dataset import ThermalBlinkDataset
 from constants import *
 from models.get_model import get_model
@@ -84,6 +84,7 @@ def evaluate_model(checkpoint_path):
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     model = get_model(MODEL_NAME)
     model.load_state_dict(checkpoint)
+    model.to(DEVICE)  
     model.eval()
 
     # 2. 验证集
@@ -96,38 +97,23 @@ def evaluate_model(checkpoint_path):
         is_val=True,
         center_size=CENTER_SIZE,
     )
-<<<<<<< Updated upstream
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False)
-=======
     val_loader = DataLoader(
     val_dataset,
     batch_size=1,              # 每次读一条完整序列
     shuffle=False,
     num_workers=0             # eval 通常单进程就够
 )
->>>>>>> Stashed changes
 
     all_preds = []
     all_labels = []
 
     for batch in val_loader:
-<<<<<<< Updated upstream
-        x_seq, y_seq = batch["x"], batch["y"]  # [1, T, C, H, W], [1, T]
-        x_seq = x_seq.squeeze(0)               # [T, C, H, W]
-        y_seq = y_seq.squeeze(0).numpy()       # [T]
-
-        with torch.no_grad():
-            logits = model(x_seq.unsqueeze(0)).squeeze(0)
-            probs = torch.sigmoid(logits).numpy()  # ← 在这里加 sigmoid
-
-=======
-        x = batch["x"].to(device)  # [B, C, H, W]
-        y = batch["y"].to(device)  # [B]
+        x = batch["x"].to(DEVICE)  # [B, C, H, W]
+        y = batch["y"].to(DEVICE)  # [B]
         with torch.no_grad():
             logits = model(x)  # [B, 1] 或 [B]
             probs = torch.sigmoid(logits).squeeze(-1).cpu().numpy()  # [B]
         y = y.cpu().numpy()
->>>>>>> Stashed changes
         all_preds.extend(probs)
         all_labels.extend(y)
 
@@ -147,10 +133,17 @@ def evaluate_model(checkpoint_path):
 
     acc = accuracy_score(bin_labels, bin_preds)
     f1 = f1_score(bin_labels, bin_preds)
+    
+    cm = confusion_matrix(bin_labels, bin_preds)
+    recall = recall_score(bin_labels, bin_preds)
+    precision = precision_score(bin_labels, bin_preds)
 
     print("\n📊 二分类评估：")
     print(f"✅ Accuracy : {acc:.4f}")
+    print(f"✅ Precision: {precision:.4f}")
+    print(f"✅ Recall   : {recall:.4f}")
     print(f"✅ F1 Score : {f1:.4f}")
+    print(f"✅ Confusion Matrix:\n{cm}")
 
     # 5. 段级评估
     print(f"[DEBUG] Pred stats: min={all_preds.min():.4f}, max={all_preds.max():.4f}, mean={all_preds.mean():.4f}")
@@ -193,7 +186,7 @@ def evaluate_model(checkpoint_path):
     ax1.grid(True)
     
     # 下图：Predicted
-    ax2.plot(all_preds, label="Predicted", color="blue", alpha=0.7)
+    ax2.plot(all_preds, label="Predicted", color="blue", alpha=0.7, linewidth=0.5)
     ax2.fill_between(range(len(all_preds)), 0, 1,
                      where=all_preds > 0.5,
                      color='red', alpha=0.2, label='Predicted Closed')
