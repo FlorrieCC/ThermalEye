@@ -137,7 +137,6 @@ env.bak/
 venv.bak/
 seek_data/
 real_data/
-ira_data/
 blink_output/
 logs/
 checkpoints/
