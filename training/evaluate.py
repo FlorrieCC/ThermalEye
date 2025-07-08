@@ -62,56 +62,38 @@ def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
         "mean_end_offset": np.mean(end_offsets) if end_offsets else 0,
     }
 
-def extract_window_segments(labels, threshold=0.5, min_len=1):
-    # labels: 窗口级概率或标签
-    segments = []
-    start = None
-    for i, val in enumerate(labels):
-        if val >= threshold:
-            if start is None:
-                start = i
-        else:
-            if start is not None and i - start >= min_len:
-                segments.append((start, i - 1))
-                start = None
-    if start is not None and len(labels) - start >= min_len:
-        segments.append((start, len(labels) - 1))
-    return segments
-
 
 def evaluate_model(checkpoint_path):
-    # 1. 加载模型
+    # 1. Load model
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     model = get_model(MODEL_NAME)
     model.load_state_dict(checkpoint)
-    model.to(DEVICE)  
+    model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))  # Auto-detect device
     model.eval()
 
-    # 2. 验证集
+    # 2. Validation dataset
     val_dataset = ThermalBlinkDataset(
         pkl_root=PKL_ROOT,
         csv_root=CSV_ROOT,
         subfolders=SUBFOLDERS,
-        val_pkl_dir=VAL_PKL_DIR,
-        val_csv_dir=VAL_CSV_DIR,
-        is_val=True,
+        split="val",  # Specify validation split
         center_size=CENTER_SIZE,
     )
     val_loader = DataLoader(
-    val_dataset,
-    batch_size=1,              # 每次读一条完整序列
-    shuffle=False,
-    num_workers=0             # eval 通常单进程就够
-)
+        val_dataset,
+        batch_size=1,              # Load one sequence at a time
+        shuffle=False,
+        num_workers=0             # Single-threaded evaluation
+    )
 
     all_preds = []
     all_labels = []
 
     for batch in val_loader:
-        x = batch["x"].to(DEVICE)  # [B, C, H, W]
-        y = batch["y"].to(DEVICE)  # [B]
+        x = batch["x"].to(DEVICE)  # Ensure data is on the correct device
+        y = batch["y"].to(DEVICE)
         with torch.no_grad():
-            logits = model(x)  # [B, 1] 或 [B]
+            logits = model(x)  # [B, 1] or [B]
             probs = torch.sigmoid(logits).squeeze(-1).cpu().numpy()  # [B]
         y = y.cpu().numpy()
         all_preds.extend(probs)
@@ -120,14 +102,14 @@ def evaluate_model(checkpoint_path):
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
-    # 3. 回归评估
+    # 3. Regression evaluation
     mae = mean_absolute_error(all_labels, all_preds)
     mse = mean_squared_error(all_labels, all_preds)
-    print("\n🔍 回归评估指标：")
+    print("\n🔍 Regression metrics:")
     print(f"✅ MAE: {mae:.4f}")
     print(f"✅ MSE: {mse:.4f}")
 
-    # 4. 二分类评估（用 0.5 阈值）
+    # 4. Binary classification evaluation (threshold = 0.5)
     bin_preds = (all_preds >= 0.5).astype(int)
     bin_labels = (all_labels >= 0.5).astype(int)
 
@@ -138,28 +120,28 @@ def evaluate_model(checkpoint_path):
     recall = recall_score(bin_labels, bin_preds)
     precision = precision_score(bin_labels, bin_preds)
 
-    print("\n📊 二分类评估：")
+    print("\n📊 Binary classification metrics:")
     print(f"✅ Accuracy : {acc:.4f}")
     print(f"✅ Precision: {precision:.4f}")
     print(f"✅ Recall   : {recall:.4f}")
     print(f"✅ F1 Score : {f1:.4f}")
     print(f"✅ Confusion Matrix:\n{cm}")
 
-    # 5. 段级评估
+    # 5. Segment-level evaluation
     print(f"[DEBUG] Pred stats: min={all_preds.min():.4f}, max={all_preds.max():.4f}, mean={all_preds.mean():.4f}")
     print(f"[DEBUG] >0.5: {(all_preds > 0.5).sum()} | <0.5: {(all_preds < 0.5).sum()}")
     
     if WINDOW_MODE:
-        print("\n📦 窗口级眨眼段评估：")
-        pred_segments = extract_window_segments(all_preds, threshold=0.5)
-        gt_segments = extract_window_segments(all_labels, threshold=0.5)
+        print("\n📦 Window-level blink segment evaluation:")
+        pred_segments = extract_blink_segments(all_preds, threshold=0.5)
+        gt_segments = extract_blink_segments(all_labels, threshold=0.5)
     else:
-        print("\n📦 帧级眨眼段评估：")
+        print("\n📦 Frame-level blink segment evaluation:")
         pred_segments = extract_blink_segments(all_preds, threshold=0.5)
         gt_segments = extract_blink_segments(all_labels, threshold=0.5)
     
-    print("  - 预测眨眼段数量 :", len(pred_segments))
-    print("  - GT眨眼段数量   :", len(gt_segments))
+    print("  - Predicted blink segments:", len(pred_segments))
+    print("  - Groundtruth blink segments:", len(gt_segments))
     
     metrics = compute_segment_metrics(pred_segments, gt_segments)
     print(f"  - Precision      : {metrics['precision']:.4f}")
@@ -169,10 +151,10 @@ def evaluate_model(checkpoint_path):
     print(f"  - Start Offset   : {metrics['mean_start_offset']:.2f} frames")
     print(f"  - End Offset     : {metrics['mean_end_offset']:.2f} frames")
 
-    # 6. 可视化
+    # 6. Visualization
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
     
-    # 上图：Groundtruth
+    # Groundtruth visualization
     ax1.plot(all_labels, label="Groundtruth", color="black")
     ax1.fill_between(range(len(all_labels)), 0, 1,
                      where=all_labels > 0.5,
@@ -185,7 +167,7 @@ def evaluate_model(checkpoint_path):
     ax1.legend()
     ax1.grid(True)
     
-    # 下图：Predicted
+    # Predicted visualization
     ax2.plot(all_preds, label="Predicted", color="blue", alpha=0.7, linewidth=0.5)
     ax2.fill_between(range(len(all_preds)), 0, 1,
                      where=all_preds > 0.5,
@@ -202,7 +184,7 @@ def evaluate_model(checkpoint_path):
     plt.tight_layout()
     os.makedirs("evaluate_output", exist_ok=True)
     plt.savefig("evaluate_output/blink_prediction_curve.png")
-    print("\n📈 可视化图已保存至 evaluate_output/blink_prediction_curve.png")
+    print("\n📈 Visualization saved to evaluate_output/blink_prediction_curve.png")
 
 
 if __name__ == '__main__':
