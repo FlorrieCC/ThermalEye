@@ -5,21 +5,21 @@ import os
 SEED = 42
 TRAIN_BATCH_SIZE = 512
 VAL_BATCH_SIZE = 512
-EPOCHS = 10
+EPOCHS = 15
 LEARNING_RATE = 1e-5
-POS_WEIGHT = 3  # Positive sample weight
+POS_WEIGHT = 4  # Positive sample weight
 
 # === Device and logging ===
 SELECTED_GPU_ID = 1
-os.environ["CUDA_VISIBLE_DEVICES"] = str(SELECTED_GPU_ID)
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 CHECKPOINT_PATH = "checkpoints/"
 LOG_DIR = "logs/"
-MODEL_NAME = "resnet" 
+MODEL_NAME = "cnnbigru" 
 
 # === Data paths ===
-PKL_ROOT = "/home/yvonne/ThermalEye/ira_data"
-CSV_ROOT = "/home/yvonne/ThermalEye/gt_output"
+PKL_ROOT = "/home/test/test05/tmp1/ThermalEye-main/ira_data"
+CSV_ROOT = "/home/test/test05/tmp1/ThermalEye-main/gt_output"
 SUBFOLDERS = ["slow", "mild", "severe", "normal"]  # Subfolders for different blink severity levels
 # === Validation set paths ===
 # VAL_PKL_DIR = "/home/yvonne/ThermalEye/ira_data/0606"

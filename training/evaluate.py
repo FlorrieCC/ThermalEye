@@ -26,6 +26,39 @@ def extract_blink_segments(sequence, threshold=0.5, min_len=3):
         segments.append((start, len(sequence) - 1))
     return segments
 
+from scipy.signal import medfilt
+
+def postprocess_predictions(probs, threshold=0.5, kernel_size=7, min_valid_len=5):
+    """
+    对预测序列进行后处理：
+    - 中值滤波平滑
+    - 移除过短的片段（如伪闭眼）
+    """
+    assert kernel_size % 2 == 1, "kernel_size 必须为奇数"
+
+    # 1. 中值滤波平滑
+    probs_smoothed = medfilt(probs, kernel_size=kernel_size)
+
+    # 2. 二值化
+    preds_bin = (probs_smoothed >= threshold).astype(int)
+
+    # 3. 移除过短片段（闭眼段 < min_valid_len）
+    processed = preds_bin.copy()
+    in_segment = False
+    start = 0
+
+    for i, val in enumerate(preds_bin):
+        if val == 1 and not in_segment:
+            start = i
+            in_segment = True
+        elif val == 0 and in_segment:
+            if i - start < min_valid_len:
+                processed[start:i] = 0  # 移除短段
+            in_segment = False
+    if in_segment and len(preds_bin) - start < min_valid_len:
+        processed[start:] = 0  # 尾部短段
+
+    return probs_smoothed, processed
 
 def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
     matched_pred = set()
@@ -94,13 +127,24 @@ def evaluate_model(checkpoint_path):
         y = batch["y"].to(DEVICE)
         with torch.no_grad():
             logits = model(x)  # [B, 1] or [B]
-            probs = torch.sigmoid(logits).squeeze(-1).cpu().numpy()  # [B]
+            # probs = torch.sigmoid(logits).squeeze(-1).cpu().numpy()  # [B]
+            probs = torch.sigmoid(logits).squeeze().cpu().numpy()
+            if probs.ndim == 0:
+                probs = np.expand_dims(probs, axis=0)  # 转换成 shape=(1,)
         y = y.cpu().numpy()
         all_preds.extend(probs)
         all_labels.extend(y)
 
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
+
+    all_preds_smoothed, bin_preds = postprocess_predictions(
+        all_preds, threshold=0.42, kernel_size=7, min_valid_len=1
+    )
+
+    # Ground truth 标签二值化
+    bin_labels = (all_labels >= 0.45).astype(int)
+
 
     # 3. Regression evaluation
     mae = mean_absolute_error(all_labels, all_preds)
@@ -110,8 +154,8 @@ def evaluate_model(checkpoint_path):
     print(f"✅ MSE: {mse:.4f}")
 
     # 4. Binary classification evaluation (threshold = 0.5)
-    bin_preds = (all_preds >= 0.5).astype(int)
-    bin_labels = (all_labels >= 0.5).astype(int)
+    # bin_preds = (all_preds >= 0.5).astype(int)
+    # bin_labels = (all_labels >= 0.5).astype(int)
 
     acc = accuracy_score(bin_labels, bin_preds)
     f1 = f1_score(bin_labels, bin_preds)
@@ -129,7 +173,7 @@ def evaluate_model(checkpoint_path):
 
     # 5. Segment-level evaluation
     print(f"[DEBUG] Pred stats: min={all_preds.min():.4f}, max={all_preds.max():.4f}, mean={all_preds.mean():.4f}")
-    print(f"[DEBUG] >0.5: {(all_preds > 0.5).sum()} | <0.5: {(all_preds < 0.5).sum()}")
+    print(f"[DEBUG] >0.45: {(all_preds > 0.45).sum()} | <0.45: {(all_preds < 0.45).sum()}")
     
     if WINDOW_MODE:
         print("\n📦 Window-level blink segment evaluation:")
@@ -188,4 +232,4 @@ def evaluate_model(checkpoint_path):
 
 
 if __name__ == '__main__':
-    evaluate_model(f"{CHECKPOINT_PATH}/tcn_final.pth")
+    evaluate_model(f"{CHECKPOINT_PATH}/res_t1.pth")
