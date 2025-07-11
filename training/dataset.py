@@ -47,7 +47,6 @@ class ThermalBlinkDataset(Dataset):
         self.train_segments = segments[:train_count]
         self.val_segments = segments[train_count:train_count + val_count]
         self.test_segments = segments[train_count + val_count:]
-
         self.update_data()
 
     def load_all_data(self, pkl_root, csv_root, subfolders):
@@ -228,4 +227,3 @@ class ThermalBlinkDataset(Dataset):
             return X, frame_labels, timestamps
         else:
             return X, frame_labels, None
-

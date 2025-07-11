@@ -140,8 +140,6 @@ real_data/
 blink_output/
 logs/
 checkpoints/
-evaluate_output/
-distribution/
 
 # Spyder project settings
 .spyderproject

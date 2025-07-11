@@ -51,14 +51,3 @@ class ResNetBlink(nn.Module):
         x = torch.flatten(x, 1)
         x = self.fc(x)
         return x
-        x = self.base_model.conv1(x)
-        x = self.base_model.bn1(x)
-        x = self.base_model.relu(x)
-        x = self.global_dropout(x)
-        x = self.base_model.layer1(x)
-        x = self.base_model.layer2(x)
-        # Skip layer3 and layer4
-        x = self.base_model.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.fc(x)
-        return x

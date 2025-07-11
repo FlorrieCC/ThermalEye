@@ -31,31 +31,59 @@ class BlinkClassifier(pl.LightningModule):
         return out
 
 
-    def training_step(self, batch, batch_idx):
-        x, y = batch["x"], batch["y"]
-        logits = self(x)
-        y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
-        loss = self.loss_fn(logits, y)
-        probs = torch.sigmoid(logits)
-        preds = (probs > 0.5).long() 
-        self.train_f1.update(preds, y.long())  # y 必须是整数类型（0/1）
-        self.log("train_loss", loss, prog_bar=True)
-        lr = self.trainer.optimizers[0].param_groups[0]['lr']
-        self.log("lr", lr, prog_bar=True, on_step=True, on_epoch=True)
+    # def training_step(self, batch, batch_idx):
+    #     x, y = batch["x"], batch["y"]
+    #     logits = self(x)
+    #     y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
+    #     loss = self.loss_fn(logits, y)
+    #     probs = torch.sigmoid(logits)
+    #     preds = (probs > 0.5).long() 
+    #     self.train_f1.update(preds, y.long())  # y 必须是整数类型（0/1）
+    #     self.log("train_loss", loss, prog_bar=True)
+    #     lr = self.trainer.optimizers[0].param_groups[0]['lr']
+    #     self.log("lr", lr, prog_bar=True, on_step=True, on_epoch=True)
 
-        # Debug: 预测值统计
+    #     # Debug: 预测值统计
+    #     self.print(f"[TRAIN] Mean Pred: {probs.mean():.4f}, Std: {probs.std():.4f}")
+    #     return loss
+
+    # def validation_step(self, batch, batch_idx):
+    #     x, y = batch["x"], batch["y"]
+    #     logits = self(x)
+    #     y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
+    #     loss = self.loss_fn(logits, y)
+    #     probs = torch.sigmoid(logits)
+    #     preds = (probs > 0.5).long()  # 二分类预测（0/1）
+        
+    #     self.val_f1.update(preds, y.long())
+    #     self.log("val_loss", loss, prog_bar=True)
+    #     self.print(f"[VAL] Loss: {loss.item():.4f}, Mean Pred: {probs.mean():.4f}, Std: {probs.std():.4f}")
+    #     return loss
+    def training_step(self, batch, batch_idx):
+        x, y = batch["x"], batch["y"]          # y: [B]
+        logits = self(x)                       # logits: [B]
+        # y = y.float()                          # [B] 保持一致，不加 .unsqueeze()
+        y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
+        loss = self.loss_fn(logits, y)         # [B] vs [B]
+        probs = torch.sigmoid(logits)          # [B]
+        preds = (probs > 0.5).long()           # [B]
+        self.train_f1.update(preds, y.long())  # y需是long类型
+
+        self.log("train_loss", loss, prog_bar=True)
+        self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'],
+                 prog_bar=True, on_step=True, on_epoch=True)
         self.print(f"[TRAIN] Mean Pred: {probs.mean():.4f}, Std: {probs.std():.4f}")
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch["x"], batch["y"]
-        logits = self(x)
+        x, y = batch["x"], batch["y"]          # y: [B]
+        logits = self(x)                       # [B]
+        # y = y.float()                          # [B]
         y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
         loss = self.loss_fn(logits, y)
-        probs = torch.sigmoid(logits)
-        preds = (probs > 0.5).long()  # 二分类预测（0/1）
-        
-        self.val_f1.update(preds, y.long())
+        probs = torch.sigmoid(logits)          # [B]
+        preds = (probs > 0.5).long()           # [B]
+        self.val_f1.update(preds, y.long())    # [B]
         self.log("val_loss", loss, prog_bar=True)
         self.print(f"[VAL] Loss: {loss.item():.4f}, Mean Pred: {probs.mean():.4f}, Std: {probs.std():.4f}")
         return loss

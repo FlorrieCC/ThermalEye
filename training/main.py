@@ -1,9 +1,7 @@
 import json
 import os
-
 import pandas as pd
 import torch
-
 from constants import *
 from dataset import ThermalBlinkDataset
 from evaluate import evaluate_model
@@ -35,14 +33,15 @@ def main():
 
     # ✅ Save model to checkpoint path
     os.makedirs(CHECKPOINT_PATH, exist_ok=True)
-    model_save_path = os.path.join(CHECKPOINT_PATH, "tcn_final.pth")
+    model_save_path = os.path.join(CHECKPOINT_PATH, "res_t1.pth")
     torch.save(model.model.state_dict(), model_save_path)
     print(f"\n✅ Model saved to {model_save_path}")
 
     # ====================== [Evaluation Section] ======================
     print("\n📊 Starting model evaluation...")
-    evaluate_model(model_save_path)
 
+    ckpt_path = os.path.join(CHECKPOINT_PATH, "res_t1.pth")
+    evaluate_model(ckpt_path)
 
 if __name__ == '__main__':
     main()
