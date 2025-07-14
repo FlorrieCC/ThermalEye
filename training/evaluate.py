@@ -265,7 +265,7 @@ def evaluate_model(checkpoint_path):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
     
     # Groundtruth visualization
-    ax1.plot(all_labels, label="Groundtruth", color="black")
+    ax1.plot(all_labels, label="Groundtruth", color="black", alpha=0.7, linewidth=0.5)
     ax1.fill_between(range(len(all_labels)), 0, 1,
                      where=all_labels > 0.5,
                      color='red', alpha=0.2, label='Closed')
