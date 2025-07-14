@@ -33,5 +33,5 @@ WINDOW_MODE = False          # Whether to use window mode
 # === Dataset and training constants ===
 SEGMENT_LEN = 160  # length of each segment in frames
 TRAIN_RATIO = 0.7  # ratio of training set
-VAL_RATIO = 0.2    # ratio of validation set
-TEST_RATIO = 0.1   # ratio of test set
+VAL_RATIO = 0.1    # ratio of validation set
+TEST_RATIO = 0.2   # ratio of test set

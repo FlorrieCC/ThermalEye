@@ -100,13 +100,18 @@ class BlinkClassifier(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
-        # 以StepLR为例，每5个epoch将lr乘以0.5
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+        # 使用 ReduceLROnPlateau 调度器，根据验证集的指标动态调整学习率
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",  # 目标是最小化验证集损失
+            factor=0.5,  # 学习率缩减因子
+            patience=3,  # 如果验证集损失连续 3 次未改善，则调整学习率
+            verbose=True,
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "interval": "epoch",  # 每个epoch调整一次
-                "monitor": "val_loss",  # 可选，某些scheduler需要
-            }
+                "monitor": "val_loss",  # 监控验证集损失
+            },
         }

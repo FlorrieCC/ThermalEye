@@ -3,6 +3,9 @@ from torch.utils.data import DataLoader
 from constants import *
 from dataset import ThermalBlinkDataset
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.callbacks import LearningRateMonitor
+
 
 class ReshuffleCallback(Callback):
     def __init__(self, train_dataset):
@@ -45,16 +48,36 @@ def build_dataloaders():
 
     return train_loader, val_loader, train
 
-def build_trainer(train):
+
+
+def build_trainer(train, callbacks=None):
+    """
+    Build PyTorch Lightning Trainer
+    Args:
+        train: Training dataset
+        callbacks: List of callbacks (e.g., EarlyStopping, ReshuffleCallback)
+    Returns:
+        Trainer object
+    """
     reshuffle_callback = ReshuffleCallback(train)
+
+    # if other callbacks are provided, append reshuffle callback
+    if callbacks is None:
+        callbacks = []
+    callbacks.append(reshuffle_callback)
+
+    # Add LearningRateMonitor callback
+    lr_monitor = LearningRateMonitor(logging_interval="epoch")
+    callbacks.append(lr_monitor)
+
     return pl.Trainer(
         max_epochs=EPOCHS,
-        accelerator="cuda",  
+        accelerator="cuda",
         devices=1,
         default_root_dir=LOG_DIR,
         log_every_n_steps=10,
         enable_checkpointing=True,
-        precision="16-mixed",      # mixed precision training
+        precision="16-mixed",  # mixed precision training
         enable_progress_bar=True,
-        callbacks=[reshuffle_callback],  
+        callbacks=callbacks,  
     )

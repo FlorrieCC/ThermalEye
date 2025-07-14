@@ -157,15 +157,15 @@ def evaluate_model(checkpoint_path):
     model.eval()
 
     # 2. Validation dataset
-    val_dataset = ThermalBlinkDataset(
+    test_dataset = ThermalBlinkDataset(
         pkl_root=PKL_ROOT,
         csv_root=CSV_ROOT,
         subfolders=SUBFOLDERS,
-        split="val",  # Specify validation split
+        split="test",  # Specify test split
         center_size=CENTER_SIZE,
     )
-    val_loader = DataLoader(
-        val_dataset,
+    test_loader = DataLoader(
+        test_dataset,
         batch_size=1,              # Load one sequence at a time
         shuffle=False,
         num_workers=0             # Single-threaded evaluation
@@ -173,13 +173,11 @@ def evaluate_model(checkpoint_path):
 
     all_preds = []
     all_labels = []
-
-    for batch in val_loader:
+    for batch in test_loader:
         x = batch["x"].to(DEVICE)  # Ensure data is on the correct device
         y = batch["y"].to(DEVICE)
         with torch.no_grad():
             logits = model(x)  # [B, 1] or [B]
-            # probs = torch.sigmoid(logits).squeeze(-1).cpu().numpy()  # [B]
             probs = torch.sigmoid(logits).squeeze().cpu().numpy()
             if probs.ndim == 0:
                 probs = np.expand_dims(probs, axis=0)  # 转换成 shape=(1,)
@@ -189,12 +187,11 @@ def evaluate_model(checkpoint_path):
 
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
-
     all_preds_smoothed, bin_preds = postprocess_predictions(
-        all_preds, threshold=0.42, kernel_size=7, min_valid_len=1
+        all_preds, threshold=0.40, kernel_size=7, min_valid_len=1
     )
 
-    # Ground truth 标签二值化
+    # Ground truth binary labels
     bin_labels = (all_labels >= 0.45).astype(int)
 
 
@@ -273,7 +270,7 @@ def evaluate_model(checkpoint_path):
                      where=all_labels <= 0.5,
                      color='green', alpha=0.1, label='Open')
     ax1.set_ylabel("Groundtruth")
-    ax1.set_title("Groundtruth (window)" if WINDOW_MODE else "Groundtruth (frame)")
+    ax1.set_title("Groundtruth (window)" if WINDOW_MODE else "Groundtruth")
     ax1.legend()
     ax1.grid(True)
     
@@ -287,7 +284,7 @@ def evaluate_model(checkpoint_path):
                      color='green', alpha=0.1, label='Predicted Open')
     ax2.set_xlabel("Window Index" if WINDOW_MODE else "Frame Index")
     ax2.set_ylabel("Predicted")
-    ax2.set_title("Predicted (window)" if WINDOW_MODE else "Predicted (frame)")
+    ax2.set_title("Predicted (window)" if WINDOW_MODE else "Predicted")
     ax2.legend()
     ax2.grid(True)
     
