@@ -12,7 +12,7 @@ from scipy.signal import medfilt
 
 
 @torch.no_grad()
-def extract_blink_segments(sequence, min_len=4):
+def extract_blink_segments(sequence, min_len=3):
     """
     从二值化序列中提取眨眼段
     Args:
@@ -35,7 +35,7 @@ def extract_blink_segments(sequence, min_len=4):
         segments.append((start, len(sequence) - 1))
     return segments
 
-def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
+def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.7):
     """
     计算段级的 Accuracy, Precision, Recall, F1 Score
     Args:
@@ -75,8 +75,8 @@ def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5):
     # 新增返回
     return {
         "accuracy": accuracy,
-        "precision": precision,
         "recall": recall,
+        "precision": precision,
         "f1": f1,
         "mean_iou": np.mean(ious_matched) if ious_matched else 0.0
     }
@@ -157,13 +157,22 @@ def evaluate_model(checkpoint_path):
     model.eval()
 
     # 2. Validation dataset
-    test_dataset = ThermalBlinkDataset(
-        pkl_root=PKL_ROOT,
-        csv_root=CSV_ROOT,
-        subfolders=SUBFOLDERS,
-        split="test",  # Specify test split
-        center_size=CENTER_SIZE,
-    )
+    if SINGLE_TEST:
+        test_dataset = ThermalBlinkDataset(
+            pkl_root=PKL_ROOT,
+            csv_root=CSV_ROOT,
+            subfolders=TEST_SUBFOLDERS,
+            split="test",  # Specify test split
+            center_size=CENTER_SIZE,
+        )
+    else:
+        test_dataset = ThermalBlinkDataset(
+            pkl_root=PKL_ROOT,
+            csv_root=CSV_ROOT,
+            subfolders=SUBFOLDERS,
+            split="test",  # Specify test split
+            center_size=CENTER_SIZE,
+        )
     test_loader = DataLoader(
         test_dataset,
         batch_size=1,              # Load one sequence at a time
@@ -188,7 +197,7 @@ def evaluate_model(checkpoint_path):
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
     all_preds_smoothed, bin_preds = postprocess_predictions(
-        all_preds, threshold=0.40, kernel_size=7, min_valid_len=1
+        all_preds, threshold=0.42, kernel_size=7, min_valid_len=1
     )
 
     # Ground truth binary labels
@@ -216,14 +225,14 @@ def evaluate_model(checkpoint_path):
     auc_pr = auc(pr_recall, pr_precision)
     
     # save the precision-recall curve values
-    np.save("evaluate_output/frame_precision.npy", pr_precision)
-    np.save("evaluate_output/frame_recall.npy", pr_recall)
+    np.save("evaluate_output/pre_shy.npy", pr_precision)
+    np.save("evaluate_output/recall_shy.npy", pr_recall)
     
 
     print("\n📊 Binary classification metrics:")
     print(f"Accuracy : {acc:.4f}")
-    print(f"Precision: {precision:.4f}")
     print(f"Recall   : {recall:.4f}")
+    print(f"Precision: {precision:.4f}")
     print(f"F1 Score : {f1:.4f}")
     print(f"Confusion Matrix:\n{cm}")
     print(f"AUC-PR: {auc_pr:.4f}")
@@ -233,10 +242,10 @@ def evaluate_model(checkpoint_path):
     if WINDOW_MODE:
         print("\n📦 Window-level blink segment evaluation:")
         pred_segments = extract_blink_segments(bin_preds)
-        gt_segments = extract_blink_segments(bin_preds)
+        gt_segments = extract_blink_segments(bin_labels)
     else:
         print("\n📦 Frame-level blink segment evaluation:")
-        pred_segments = extract_blink_segments(bin_labels)
+        pred_segments = extract_blink_segments(bin_preds)
         gt_segments = extract_blink_segments(bin_labels)
     
     print("  - Predicted blink segments:", len(pred_segments))
@@ -250,19 +259,22 @@ def evaluate_model(checkpoint_path):
     
     metrics = compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5)
     print(f"  - Accuracy : {metrics['accuracy']:.4f}")
-    print(f"  - Precision: {metrics['precision']:.4f}")
     print(f"  - Recall   : {metrics['recall']:.4f}")
+    print(f"  - Precision: {metrics['precision']:.4f}")
     print(f"  - F1 Score : {metrics['f1']:.4f}")
     print("  - Mean IoU (matched):", metrics["mean_iou"])
         
 
 
 
-    # 6. Visualization
+    # Visualization
+    max_frames = 5000  # Maximum number of frames to visualize
+    all_labels = all_labels[:max_frames]  # Slice ground truth labels
+    bin_preds = bin_preds[:max_frames]    # Slice predicted labels
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
     
     # Groundtruth visualization
-    ax1.plot(all_labels, label="Groundtruth", color="black", alpha=0.7, linewidth=0.5)
+    ax1.plot(all_labels, label="Groundtruth", color="black", linewidth=0.5)
     ax1.fill_between(range(len(all_labels)), 0, 1,
                      where=all_labels > 0.5,
                      color='red', alpha=0.2, label='Closed')
@@ -270,9 +282,11 @@ def evaluate_model(checkpoint_path):
                      where=all_labels <= 0.5,
                      color='green', alpha=0.1, label='Open')
     ax1.set_ylabel("Groundtruth")
-    ax1.set_title("Groundtruth (window)" if WINDOW_MODE else "Groundtruth")
-    ax1.legend()
-    ax1.grid(True)
+    ax1.set_title("Groundtruth")
+    ax1.legend(loc="upper right")  # Fixed legend position
+    ax1.set_xlim(0, max_frames - 1)  # Set x-axis limits to remove empty space
+    ax1.set_ylim(0, 1)
+    ax1.grid(False)  # Remove grid
     
     # Predicted visualization
     ax2.plot(bin_preds, label="Predicted", color="blue", alpha=0.7, linewidth=0.5)
@@ -284,15 +298,17 @@ def evaluate_model(checkpoint_path):
                      color='green', alpha=0.1, label='Predicted Open')
     ax2.set_xlabel("Window Index" if WINDOW_MODE else "Frame Index")
     ax2.set_ylabel("Predicted")
-    ax2.set_title("Predicted (window)" if WINDOW_MODE else "Predicted")
-    ax2.legend()
-    ax2.grid(True)
+    ax2.set_title("Predicted")
+    ax2.legend(loc="upper right")  # Fixed legend position
+    ax2.set_xlim(0, max_frames - 1)  # Set x-axis limits to remove empty space
+    ax2.set_ylim(0, 1) 
+    ax2.grid(False)  # Remove grid
     
+    # Save the figure
     plt.tight_layout()
     os.makedirs("evaluate_output", exist_ok=True)
-    plt.savefig("evaluate_output/blink_prediction_curve.png")
-    print("\n📈 Visualization saved to evaluate_output/blink_prediction_curve.png")
-
-
+    plt.savefig("evaluate_output/blink_prediction_curve.pdf",dpi=300, bbox_inches='tight')
+    plt.show()
+    print("\n📈 Visualization saved to evaluate_output/blink_prediction_curve.pdf")
 if __name__ == '__main__':
-    evaluate_model(f"{CHECKPOINT_PATH}/res_t1.pth")
+    evaluate_model(f"{CHECKPOINT_PATH}/1135.pth")

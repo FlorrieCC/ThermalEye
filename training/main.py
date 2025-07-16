@@ -38,7 +38,7 @@ def main():
     )
 
     # Build trainer with reshuffle, early stopping, and learning rate monitor callbacks
-    # trainer = build_trainer(train_dataset, callbacks=[early_stopping])
+    # trainer = build_trainer(train_dataset, callbacks=[early_stopping]) 
     trainer = build_trainer(train_dataset)
     trainer.fit(model, train_loader, val_loader)
 

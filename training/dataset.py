@@ -20,34 +20,34 @@ class ThermalBlinkDataset(Dataset):
             split: str = "train",  # "train", "val", "test"
             center_size: tuple = (12, 16),
     ):
-        """
-        Args:
-            pkl_root: heatmap pkl directory path
-            csv_root: blink annotation csv directory path
-            subfolders: list of subfolders, e.g. ["0503", "0505"]
-            val_pkl_dir: validation set pkl directory path (enabled when is_val=True)
-            val_csv_dir: validation set csv directory path (enabled when is_val=True)
-            is_val: whether this is the validation set
-            center_size: center crop size, default (12, 16)
-        """
         self.center_size = center_size
         self.split = split
         self.data = []
-        # load all data
-        all_data = self.load_all_data(pkl_root, csv_root, subfolders)
-        segments = [all_data[i:i+SEGMENT_LEN] for i in range(0, len(all_data), SEGMENT_LEN)]
-        set_random_seeds()  # use utils.py's random seed function
-        np.random.shuffle(segments)
 
-        # divide segments into train, val, test
-        train_count = int(len(segments) * TRAIN_RATIO)
-        val_count = int(len(segments) * VAL_RATIO)
-        test_count = len(segments) - train_count - val_count
+        if SINGLE_TEST and split == "test":
+            # load all data from TEST_SUBFOLDERS for the test set
+            all_data = self.load_all_data(pkl_root, csv_root, TEST_SUBFOLDERS)
+            # Divide data into segments and shuffle them
+            segments = [all_data[i:i+SEGMENT_LEN] for i in range(0, len(all_data), SEGMENT_LEN)]
+            set_random_seeds() 
+            np.random.shuffle(segments)
+            self.data = [item for seg in segments for item in seg]
+        else:
+            # load all data from pkl and csv files
+            all_data = self.load_all_data(pkl_root, csv_root, subfolders)
+            segments = [all_data[i:i+SEGMENT_LEN] for i in range(0, len(all_data), SEGMENT_LEN)]
+            set_random_seeds()  # use utils.py's random seed function
+            np.random.shuffle(segments)
 
-        self.train_segments = segments[:train_count]
-        self.val_segments = segments[train_count:train_count + val_count]
-        self.test_segments = segments[train_count + val_count:]
-        self.update_data()
+            # divide segments into train, val, test
+            train_count = int(len(segments) * TRAIN_RATIO)
+            val_count = int(len(segments) * VAL_RATIO)
+            test_count = len(segments) - train_count - val_count
+
+            self.train_segments = segments[:train_count]
+            self.val_segments = segments[train_count:train_count + val_count]
+            self.test_segments = segments[train_count + val_count:]
+            self.update_data()
 
     def load_all_data(self, pkl_root, csv_root, subfolders):
         """
@@ -205,6 +205,7 @@ class ThermalBlinkDataset(Dataset):
             ce  = clahe.apply(u8).astype(np.float32) / 255.0
             processed.append(ce)
         frames_np = np.stack(processed, axis=0)  # [N, H, W]
+        # frames_np = np.stack(raw_frames, axis=0)  # [N, H, W]
 
         # timestamps & labels per frame
         ts_list = [datetime.fromisoformat(t) for t in data['timestamp']]

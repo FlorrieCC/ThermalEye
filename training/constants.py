@@ -20,10 +20,10 @@ MODEL_NAME = "resnet18"
 # === Data paths ===
 PKL_ROOT = "/home/yvonne/ThermalEye/ira_data"  
 CSV_ROOT = "/home/yvonne/ThermalEye/gt_output"
-SUBFOLDERS = ["slow", "mild", "severe", "normal"]  # Subfolders for different blink severity levels
-# === Validation set paths ===
-# VAL_PKL_DIR = "/home/yvonne/ThermalEye/ira_data/0606"
-# VAL_CSV_DIR = "/home/yvonne/ThermalEye/gt_output/0606"
+# SUBFOLDERS = ["cold", "hot"] 
+SUBFOLDERS = ["normal", "severe", "mild", "slow"]  # Subfolders for training and validation
+TEST_SUBFOLDERS = ["severe"]  # Subfolders for test set
+SINGLE_TEST = True  # Whether to use a single test subfolder
 
 # === Data processing parameters ===
 CENTER_SIZE = (12, 16)      # Center crop size

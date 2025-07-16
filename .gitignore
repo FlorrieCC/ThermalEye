@@ -135,11 +135,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-seek_data/
 real_data/
-blink_output/
 logs/
-checkpoints/
 
 # Spyder project settings
 .spyderproject
