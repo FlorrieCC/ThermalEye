@@ -59,6 +59,10 @@ python training/main.py
 
 This will train the model on the provided dataset and print evaluation metrics to the console after training completes.
 
+> ⚠️ Training requires a GPU with **at least 24 GB** of memory.  
+> If your device does not meet this requirement, you can reduce the values of `TRAIN_BATCH_SIZE` and `VAL_BATCH_SIZE` in `training/constants.py`.  
+> If the training still fails due to memory constraints, you can skip training and proceed with **Option 2** to directly evaluate our pretrained model.
+
 ---
 
 ### ✅ Option 2: Evaluate a Pretrained Model
