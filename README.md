@@ -4,57 +4,64 @@ This project presents a lightweight, privacy-preserving blink detection system u
 
 ---
 
-## 📦 Part 1: Data Collection
+## 📦 Part 1: Dataset Introduction
 
-### 🔧 Environment Setup
+The dataset used in this project was collected using two synchronized sensors:
 
-ThermalEye is built around the **MLX90641** thermal infrared array sensor, a compact, uncooled FIR sensor ideal for wearable and privacy-preserving physiological monitoring.
+- ✅ **Thermal Sensor**: [MLX90641](https://www.melexis.com/en/product/mlx90641/high-operating-temperature-fir-thermal-sensor-array)  
+  A compact, low-resolution thermal infrared array sensor (16×12), operating in the 7.5–14 µm range. It enables passive, privacy-preserving monitoring by capturing temperature distributions without relying on ambient light. This sensor is ideal for wearable applications and was used to record thermal signals from the eye region during blinking.
 
-- ✅ **Thermal Sensor**: MLX90641  
-  ➤ [Product Introduction (Melexis)](https://www.melexis.com/en/product/mlx90641/high-operating-temperature-fir-thermal-sensor-array)  
-  ➤ [Official Driver Library (C/C++)](https://github.com/melexis/mlx90641-library)  
-  ➤ Python drivers and examples are also available in the community or through I2C wrappers.
+- ✅ **RGB Camera (Optional for Annotation)**: Intel RealSense  
+  Used to capture synchronized RGB videos as a visual reference and to assist in blink annotation.  
+  The RGB stream was aligned with the thermal frames during data collection but is not required for model inference.
 
-> ⚠️ Currently, this project does **not** support MLX90640 or other variants.
-
-- ✅ **RGB Camera (Optional)**:  
-  Intel RealSense camera is used during data collection for annotation and alignment.  
-  Please make sure it is properly installed and accessible via `pyrealsense2`.
-
-### ▶ Run Data Collection Script
-
-After setting up the MLX90641 and optionally the RealSense camera, you can start collecting synchronized thermal and RGB data using:
-
-```bash
-git clone https://github.com/FlorrieCC/ThermalEye.git
-cd ThermalEye
-python real_ira.py
-```
-
-This script records thermal frames from MLX90641 and aligns them with RGB images (if a RealSense camera is connected), saving them for downstream training and evaluation.
-
-> 📝 Tip: You can modify `real_ira.py` to skip RealSense recording if only thermal data is required.
+> ⚠️ Note: All data used in this project was collected offline and is provided in the repository. No real-time hardware setup is needed to reproduce our training or evaluation results.
 
 ---
 
 
-## 🧠 Part 2: Train and Evaluate the Model
+## 🧠 Train and Evaluate the Model
 
-The `ira_data/` directory contains our original raw thermal recordings, and `gt_output/` contains the corresponding ground truth labels.
+If you do not have the hardware setup to collect your own data, there are **two quick start options** to get started with our pretrained model or train one from scratch using the provided data.
 
+The `ira_data/` directory contains our original raw thermal recordings, and `gt_output/` contains the corresponding ground truth labels.  
 All model training and evaluation code is organized under the `training/` directory.
 
-### 🔧 Setup Training Environment
+First, clone the repository:
 
-Install required dependencies for model training:
+```bash
+git clone https://github.com/FlorrieCC/ThermalEye.git
+cd ThermalEye
+```
+
+Then, create and activate a new conda environment:
+
+```bash
+conda create -n thermalEye python=3.10
+conda activate thermalEye
+```
+
+Install training dependencies:
 
 ```bash
 pip install -r training/requirements.txt
 ```
 
-> This includes `torch`, `torchvision`, `scikit-learn`, and other relevant packages.
+---
 
-### ✅ Evaluate a Pretrained Model (Quick Start)
+### 🏋️‍♀️ Option 1: Train and Evaluate a Model
+
+Once the environment is ready, you can train and evaluate a model from scratch by running:
+
+```bash
+python training/main.py
+```
+
+This will train the model on the provided dataset and print evaluation metrics to the console after training completes.
+
+---
+
+### ✅ Option 2: Evaluate a Pretrained Model
 
 To quickly evaluate our pretrained model:
 
@@ -73,12 +80,8 @@ To quickly evaluate our pretrained model:
    evaluate_output/
    ```
 
----
 
-## 🚀 Part 3: Real-Time Demo (Quick Start)
 
-_Coming soon..._
 
----
 
 
