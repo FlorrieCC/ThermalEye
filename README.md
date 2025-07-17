@@ -4,7 +4,7 @@ This project presents a lightweight, privacy-preserving blink detection system u
 
 ---
 
-## 📦 Part 1: Dataset Introduction
+## 📦 Dataset Introduction
 
 The dataset used in this project was collected using two synchronized sensors:
 
