@@ -314,7 +314,8 @@ def evaluate_model(checkpoint_path):
     plt.tight_layout(pad=0.1)
     os.makedirs("evaluate_output", exist_ok=True)
     plt.savefig("evaluate_output/blink_prediction_curve.pdf", dpi=300, bbox_inches='tight')
+    plt.show()
     print("\n📈 Visualization saved to evaluate_output/blink_prediction_curve.pdf")
 
 if __name__ == '__main__':
-    evaluate_model(f"{CHECKPOINT_PATH}/1135.pth")
+    evaluate_model(f"{CHECKPOINT_PATH}/sample_model.pth")

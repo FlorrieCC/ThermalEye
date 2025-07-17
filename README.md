@@ -1,109 +1,84 @@
-## FLIR Lepton 3.5
+# ThermalEye: Real-Time Blink Detection with Thermal Sensors
 
-### Details
-
-- **Name (CN)**: Miniature LWIR (Long-wave Infrared) Thermal Imaging Sensor thermal camera
-- **Model**: FLIR Lepton 3.5 ([Official Website](https://www.flir.asia/products/lepton/?model=500-0771-01&vertical=microcam&segment=oem))
-- **Operating Principle**: LWIR microbolometer array.
-- **Video Stream Support**: Outputs infrared thermal video stream.
-- **Temperature Range**: -10°C to 140°C
-- **Resolution**: 160×120
-- **Field of View (FOV)**:
-  - Horizontal: 57°, Diagonal: 71°, Vertical Field of View (VFOV): 46.34° (Calculated)
-- **Frame Rate**: 8.6Hz
-- **Thermal Sensitivity (NETD)**: ≤50mK
-- **Data Format**: User-selectable 14-bit, 8-bit (AGC applied), or 24-bit RGB (AGC and colorization applied)
-- **Price**: 1,337.99 HKD (Module included: 3,989 HKD)
-- **Data Reading**: [Data Reading Example](https://book.openmv.cc/example/27-Lepton/lepton-get-object-temp.html)
-
-### Experiment
-
-OpenmMV development board is also a usb device, put the [main file](https://github.com/FlorrieCC/EyeBlink/blob/main/FLIR_LEPTON/main.py), when the OpenMV device is connected to the computer through the usb interface, the device will run its own main script. We use a [controller](https://github.com/FlorrieCC/EyeBlink/blob/main/FLIR_LEPTON/controller.py) to listen to the script to run the device manually, and detach from the plugin provided by OpenMV as well as the IDE, use the command line to run mutiple devices at one time.
-
-
-## Seek Thermal Micro Core M2
-
-- **Name (CN)**: Consumer and Industrial Infrared Thermal Imaging Device thermal camera
-- **Model**: Micro Core M2 ([Official Website](https://www.thermal.com/uploads/1/0/1/3/101388544/micro_core_specification_sheet.pdf))
-- **Operating Principle**: Uncooled Vanadium Oxide Microbolometer (7.8 - 14 µm)
-- **Video Stream Support**: Supported (limited to <9Hz)
-- **Temperature Range**: -20°C to 300°C
-- **Resolution**: 200×150
-- **Field of View (FOV)**: 81°×61°
-- **Frame Rate**: <9Hz
-- **Thermal Sensitivity (NETD)**: 75 mK
-- **Data Format**: 16-bit RAW data, 32-bit ARGB processed data, supports floating-point or fixed-point thermal imaging temperature units (°C, °F, K)
-- **Price**: 5,088.86 HKD
-- **Data Reading**: [seekcamera-python SDK](https://github.com/seekcamera/seekcamera-python)
-
-
-**The complete readme: https://possible-calf-de9.notion.site/Thermal-Duo-One-Truth-Building-a-Reliable-Deployment-for-Comparative-Thermal-Sensing-1c7208d1fa5780f2997dd9ca39009ebf?pvs=4**
-
-
-
-## MLX9064x Series
-
-- **Name (CN)**: Grid-Eye Infrared Thermal Sensor Array
-- **Models**: MLX90640 / MLX90641 ([Official Website](https://www.melexis.com/en/))
-- **Operating Principle**: Uncooled IR sensor based on thermopile technology (7.5 - 14 µm)
-- **Video Stream Support**: Supported
-
-### 📊 Specification Comparison
-
-| Parameter                 | MLX90640                         | MLX90641                         |
-|---------------------------|----------------------------------|----------------------------------|
-| **Resolution**            | 32×24                            | 16×12                            |
-| **Frame Rate**            | 0.5Hz ~ 64Hz                     | 0.5Hz ~ 64Hz                     |
-| **Temperature Range**     | -40°C to 300°C                   | -40°C to 300°C                   |
-| **Field of View (FOV)**   | 55°×35° or 110°×75°              | 55°×35°                          |
-| **Thermal Sensitivity**   | ~100 mK                          | ~100 mK                          |
-| **Data Format**           | 16-bit raw data; Celsius output  | 16-bit raw data; Celsius output  |
-| **Price**                 | ~250–400 HKD                     | ~250–400 HKD                     |
-| **Data Reading**          | [Melexis Python Drivers](https://github.com/melexis) | [Melexis Python Drivers](https://github.com/melexis) |
-
-
-# 📘 realsense&MLX Guidance
-
-## 🔧 Installation Guide for ThermalEye
-
-### 📌 Prerequisites
-
-- Python **3.10.2**
-- `pip` (Python package installer)
-- Optional but recommended: use a virtual environment (`venv` or `virtualenv`) to isolate dependencies.
+This project presents a lightweight, privacy-preserving blink detection system using the MLX9064x thermal infrared array sensors. It enables real-time, non-contact eye state monitoring suitable for static, natural environments like reading or AR/VR usage.
 
 ---
 
-### 📁 Step-by-step Installation
+## 📦 Part 1: Data Collection
 
-1. **Clone the repository** (if not already):
-   ```bash
-   git clone https://github.com/your-username/ThermalEye.git
-   cd ThermalEye
-   ```
+### 🔧 Environment Setup
 
-2. **(Optional) Create a virtual environment**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+ThermalEye is built around the **MLX90641** thermal infrared array sensor, a compact, uncooled FIR sensor ideal for wearable and privacy-preserving physiological monitoring.
 
-3. **Install the required Python packages**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+- ✅ **Thermal Sensor**: MLX90641  
+  ➤ [Product Introduction (Melexis)](https://www.melexis.com/en/product/mlx90641/high-operating-temperature-fir-thermal-sensor-array)  
+  ➤ [Official Driver Library (C/C++)](https://github.com/melexis/mlx90641-library)  
+  ➤ Python drivers and examples are also available in the community or through I2C wrappers.
 
-4. **Required Packages (already listed in `requirements.txt`)**:
+> ⚠️ Currently, this project does **not** support MLX90640 or other variants.
 
-   - `numpy`
-   - `opencv-python`
-   - `pyserial`
-   - `pyrealsense2`
+- ✅ **RGB Camera (Optional)**:  
+  Intel RealSense camera is used during data collection for annotation and alignment.  
+  Please make sure it is properly installed and accessible via `pyrealsense2`.
 
-   > 📝 **Note**: Some standard libraries used in the project (e.g., `os`, `time`, `datetime`, `sys`, `pickle`, etc.) come bundled with Python and do not require installation.
+### ▶ Run Data Collection Script
 
-5. **You're all set! Run the project using**:
-   ```bash
-   python real_ira.py
-   ```
+After setting up the MLX90641 and optionally the RealSense camera, you can start collecting synchronized thermal and RGB data using:
+
+```bash
+git clone https://github.com/FlorrieCC/ThermalEye.git
+cd ThermalEye
+python real_ira.py
 ```
+
+This script records thermal frames from MLX90641 and aligns them with RGB images (if a RealSense camera is connected), saving them for downstream training and evaluation.
+
+> 📝 Tip: You can modify `real_ira.py` to skip RealSense recording if only thermal data is required.
+
+---
+
+
+## 🧠 Part 2: Train and Evaluate the Model
+
+The `ira_data/` directory contains our original raw thermal recordings, and `gt_output/` contains the corresponding ground truth labels.
+
+All model training and evaluation code is organized under the `training/` directory.
+
+### 🔧 Setup Training Environment
+
+Install required dependencies for model training:
+
+```bash
+pip install -r training/requirements.txt
+```
+
+> This includes `torch`, `torchvision`, `scikit-learn`, and other relevant packages.
+
+### ✅ Evaluate a Pretrained Model (Quick Start)
+
+To quickly evaluate our pretrained model:
+
+1. Ensure the checkpoint file exists:  
+   `checkpoints/sample_model.pth`
+
+2. Run the evaluation script:
+
+   ```bash
+   python training/evaluate.py
+   ```
+
+3. Results will be printed to the console and saved under:
+
+   ```
+   evaluate_output/
+   ```
+
+---
+
+## 🚀 Part 3: Real-Time Demo (Quick Start)
+
+_Coming soon..._
+
+---
+
+
