@@ -266,49 +266,63 @@ def evaluate_model(checkpoint_path):
         
 
 
-
     # Visualization
+    
+    # ✅ font settings for matplotlib
+    plt.rcParams.update({
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42,
+        'font.size': 16
+    })
     max_frames = 5000  # Maximum number of frames to visualize
     all_labels = all_labels[:max_frames]  # Slice ground truth labels
     bin_preds = bin_preds[:max_frames]    # Slice predicted labels
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
-    
+
     # Groundtruth visualization
     ax1.plot(all_labels, label="Groundtruth", color="black", linewidth=0.5)
     ax1.fill_between(range(len(all_labels)), 0, 1,
-                     where=all_labels > 0.5,
-                     color='red', alpha=0.2, label='Closed')
+                    where=all_labels > 0.5,
+                    color='red', alpha=0.2, label='Closed')
     ax1.fill_between(range(len(all_labels)), 0, 1,
-                     where=all_labels <= 0.5,
-                     color='green', alpha=0.1, label='Open')
+                    where=all_labels <= 0.5,
+                    color='green', alpha=0.1, label='Open')
     ax1.set_ylabel("Groundtruth")
     ax1.set_title("Groundtruth")
-    ax1.legend(loc="upper right")  # Fixed legend position
-    ax1.set_xlim(0, max_frames - 1)  # Set x-axis limits to remove empty space
+    ax1.legend(loc="upper right")
+    ax1.set_xlim(0, max_frames - 1)
     ax1.set_ylim(0, 1)
-    ax1.grid(False)  # Remove grid
-    
+    ax1.grid(False)
+
+    # set spine linewidth   
+    for spine in ax1.spines.values():
+        spine.set_linewidth(1)
+
     # Predicted visualization
     ax2.plot(bin_preds, label="Predicted", color="blue", alpha=0.7, linewidth=0.5)
     ax2.fill_between(range(len(bin_preds)), 0, 1,
-                     where=bin_preds > 0.5,
-                     color='red', alpha=0.2, label='Predicted Closed')
+                    where=bin_preds > 0.5,
+                    color='red', alpha=0.2, label='Predicted Closed')
     ax2.fill_between(range(len(bin_preds)), 0, 1,
-                     where=bin_preds <= 0.5,
-                     color='green', alpha=0.1, label='Predicted Open')
+                    where=bin_preds <= 0.5,
+                    color='green', alpha=0.1, label='Predicted Open')
     ax2.set_xlabel("Window Index" if WINDOW_MODE else "Frame Index")
     ax2.set_ylabel("Predicted")
     ax2.set_title("Predicted")
-    ax2.legend(loc="upper right")  # Fixed legend position
-    ax2.set_xlim(0, max_frames - 1)  # Set x-axis limits to remove empty space
-    ax2.set_ylim(0, 1) 
-    ax2.grid(False)  # Remove grid
-    
+    ax2.legend(loc="upper right")
+    ax2.set_xlim(0, max_frames - 1)
+    ax2.set_ylim(0, 1)
+    ax2.grid(False)
+
+    # set spine linewidth
+    for spine in ax2.spines.values():
+        spine.set_linewidth(1)
+
     # Save the figure
-    plt.tight_layout()
+    plt.tight_layout(pad=0.1)
     os.makedirs("evaluate_output", exist_ok=True)
-    plt.savefig("evaluate_output/blink_prediction_curve.pdf",dpi=300, bbox_inches='tight')
-    plt.show()
+    plt.savefig("evaluate_output/blink_prediction_curve.pdf", dpi=300, bbox_inches='tight')
     print("\n📈 Visualization saved to evaluate_output/blink_prediction_curve.pdf")
+
 if __name__ == '__main__':
     evaluate_model(f"{CHECKPOINT_PATH}/1135.pth")
