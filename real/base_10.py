@@ -1,6 +1,6 @@
 '''
     v10
-    更新：批量处理视频，支持实时显示与快速处理模式
+    Update: Batch video processing, supports real-time display and fast processing mode
 '''
 
 import cv2
@@ -16,7 +16,7 @@ import json
 import matplotlib.ticker as ticker
 
 '''
-读取csv
+Read CSV
 import pandas as pd
 import json
 
@@ -30,7 +30,7 @@ print(offsets['end_offsets'])    # -> list
 def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt_output'):
     '''
         v9
-        更新：添加时实模式，支持快速处理视频
+        Update: Add real-time mode, support fast video processing
     '''
 
     import cv2
@@ -53,7 +53,7 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
     blinkCounter = 0
     color = (255, 0, 255)
 
-    # 校准
+    # Calibration
     calibrationRatios = []
     calibrationFrames = 100
     calibrated = True
@@ -82,9 +82,9 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
     recorded_ratios = []
     recorded_timestamps = []
 
-    print(f"[INFO] 视频帧率: {fps} FPS")
-    print(f"[INFO] 视频总帧数: {cap.get(cv2.CAP_PROP_FRAME_COUNT)}")
-    print(f"[INFO] 视频时长: {cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps:.2f} 秒")
+    print(f"[INFO] Video FPS: {fps} FPS")
+    print(f"[INFO] Total frames: {cap.get(cv2.CAP_PROP_FRAME_COUNT)}")
+    print(f"[INFO] Duration: {cap.get(cv2.CAP_PROP_FRAME_COUNT) / fps:.2f} seconds")
     
     video_start_timestamp = get_beijing_time()
 
@@ -128,7 +128,7 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
                     video_start_timestamp = get_beijing_time()
                     continue
             else:
-                # 状态机检测眨眼
+                # State machine for blink detection
                 if ratioAvg < adaptiveThreshold:
                     closed_frames += 1
                     if not eye_closed and closed_frames >= min_blink_duration_frames:
@@ -161,7 +161,7 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
                         min_distance = None
                     closed_frames = 0
 
-                # ✅ 记录数据
+                # ✅ Record data
                 # if video_start_timestamp and cap.get(cv2.CAP_PROP_POS_FRAMES) > calibrationFrames:
                 if video_start_timestamp:
                     frame_index = cap.get(cv2.CAP_PROP_POS_FRAMES)
@@ -170,7 +170,7 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
                     recorded_timestamps.append(offset)
 
             imgPlot = plotY.update(ratioAvg, color)
-            # ➕ 添加横线表示阈值
+            # ➕ Add horizontal line to indicate threshold
             if calibrated:
                 cv2.line(imgPlot, (0, int(360 - adaptiveThreshold * 3.6)), (640, int(360 - adaptiveThreshold * 3.6)), (0, 0, 255), 2)
             cv2.putText(imgPlot, f'Blinks: {blinkCounter}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
@@ -194,12 +194,12 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
     print("Blink Start Frames:", blink_start_frames)
     print("Blink End Frames:", blink_end_frames)
 
-    # ✅ 保存数据与绘图
+    # ✅ Save data and plot
     output_dir = output_dir
     os.makedirs(output_dir, exist_ok=True)
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
 
-    # 保存ratio数据
+    # Save ratio data
     # csv_path = os.path.join(output_dir, 'blink_ratios.csv')
     # df = pd.DataFrame({
     #     'timestamp_ms': recorded_timestamps,
@@ -208,7 +208,7 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
     # df.to_csv(csv_path, index=False)
     # print(f"[SAVED] Ratio data saved to: {csv_path}")
 
-    # 保存帧编号数据
+    # Save frame indices
     # frame_csv_path = os.path.join(output_dir, 'blink_frames.csv')
     # df_frames = pd.DataFrame({
     #     'blink_start_frame': pd.Series(blink_start_frames),
@@ -217,7 +217,7 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
     # df_frames.to_csv(frame_csv_path, index=False)
     # print(f"[SAVED] Blink frame indices saved to: {frame_csv_path}")
 
-    # 绘制眨眼曲线
+    # Plot blink detection curve
     plt.figure(figsize=(12, 5))
     plt.plot(recorded_timestamps, recorded_ratios, label='Ratio Avg', color='blue')
     for start, end in zip(blink_start_offsets, blink_end_offsets):
@@ -234,7 +234,7 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
     # plt.show()
     print(f"[SAVED] Plot saved to: {img_path}")
 
-    # ✅ 保存偏移值为 CSV（key-value 格式）
+    # ✅ Save offset values as CSV (key-value format)
     offset_csv_path = os.path.join(output_dir, f'blink_offsets_{video_filename}.csv')
 
     df_offset = pd.DataFrame([
@@ -243,40 +243,38 @@ def process_video(video_path, real_time_mode=False, threshold=40, output_dir='gt
     ])
     df_offset.to_csv(offset_csv_path, index=False)
     print(f"[SAVED] Blink offsets saved to: {offset_csv_path}")
-    
-    
-    
+
 
 if __name__ == "__main__":
-    # ✅ 修改这里选择模式："single" 或 "batch"
+    # ✅ Set processing mode: "single" or "batch"
     MODE = "single"
 
-    # ✅ 如果 MODE = "single"，设置视频路径
+    # ✅ If MODE = "single", set video path
     single_video_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0618/shy_left_hot_severe_20250619_031634_848.mp4"
 
-    # ✅ 如果 MODE = "batch"，设置文件夹路径
+    # ✅ If MODE = "batch", set folder path
     batch_folder_path = "/Users/yvonne/Documents/final project/ThermalEye/real_data/0618"
 
-    # ✅ 是否开启实时显示（True = 显示窗口，False = 快速处理）
+    # ✅ Enable real-time display (True = show window, False = fast process)
     enable_realtime = False
     
-    # ✅ threshold 
-    threshold = 37  # 可调节的阈值
+    # ✅ Threshold
+    threshold = 37  # Adjustable threshold
     
-    # ✅ output_dir
+    # ✅ Output directory
     output_dir = "gt_output/0618"
 
     if MODE == "single":
-        print(f"\n🟢 正在处理单个视频: {single_video_path}")
+        print(f"\n🟢 Processing single video: {single_video_path}")
         process_video(single_video_path, real_time_mode=enable_realtime, threshold=threshold, output_dir=output_dir)
 
     elif MODE == "batch":
-        print(f"\n🟢 正在批量处理文件夹: {batch_folder_path}")
+        print(f"\n🟢 Processing folder in batch mode: {batch_folder_path}")
         for filename in os.listdir(batch_folder_path):
             if filename.endswith(".mp4"):
                 video_path = os.path.join(batch_folder_path, filename)
-                print(f"\n👉 处理: {video_path}")
+                print(f"\n👉 Processing: {video_path}")
                 process_video(video_path, real_time_mode=enable_realtime, threshold=threshold, output_dir=output_dir)
 
     else:
-        print("❌ MODE 设置错误，请使用 'single' 或 'batch'")
+        print("❌ Invalid MODE setting, use 'single' or 'batch'")

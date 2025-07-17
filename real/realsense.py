@@ -8,11 +8,11 @@ from datetime import datetime
 
 def parse_args():
     """
-    解析命令行参数：
-    sys.argv[1] -- save_flag (控制是否保存数据，传入 False/0/no 则关闭保存，默认为 True)
-    sys.argv[2] -- run_time (程序运行时间，单位秒，不传入或为0则无限制运行)
-    sys.argv[3] -- save_dir (保存数据文件夹，不传入则默认为 "real_data")
-    sys.argv[4] -- save_name (保存文件名前缀，不传入则默认为 "output")
+    Parse command-line arguments:
+    sys.argv[1] -- save_flag (controls whether to save data, set to False/0/no to disable, default is True)
+    sys.argv[2] -- run_time (execution time in seconds; if not provided or 0, run indefinitely)
+    sys.argv[3] -- save_dir (directory to save data; default is "real_data")
+    sys.argv[4] -- save_name (file name prefix for saving; default is "output")
     """
     save_flag = True
     run_time = 0
@@ -24,7 +24,7 @@ def parse_args():
         try:
             run_time = float(sys.argv[2])
         except ValueError:
-            print("运行时间参数不合法，使用默认无限制运行")
+            print("Invalid run time argument. Using default: unlimited.")
             run_time = 0
     if len(sys.argv) > 3:
         save_dir = sys.argv[3]
@@ -35,7 +35,7 @@ def parse_args():
 def check_device():
     ctx = rs.context()
     if len(ctx.query_devices()) == 0:
-        print("没有检测到 RealSense 设备，程序退出。")
+        print("No RealSense device detected. Exiting program.")
         sys.exit(1)
 
 def create_save_dir(save_flag, save_dir):
@@ -71,14 +71,13 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
     if save_flag:
         video_path, ts_path = new_filename(save_dir, save_name)
         out = cv2.VideoWriter(video_path, fourcc, FPS, (FRAME_WIDTH, FRAME_HEIGHT))
-        print("开始保存新文件：", video_path)
+        print("Saving to new file:", video_path)
         ts_file = open(ts_path, "w")
-
 
     try:
         while True:
             if run_time > 0 and (time.time() - total_start_time) >= run_time:
-                print(f"达到设定的运行时间 {run_time} 秒，程序自动停止。")
+                print(f"Run time of {run_time} seconds reached. Exiting.")
                 break
 
             frames = pipeline.wait_for_frames()
@@ -98,13 +97,12 @@ def record_realsense(save_flag, run_time, save_dir, save_name):
                 break
 
     except KeyboardInterrupt:
-        print("\n用户中断, 关闭 RealSense")
+        print("\nUser interrupted. Closing RealSense.")
     except Exception as e:
         print("Error:", e)
     finally:
         if save_flag and out is not None:
             ts_file.close()
-
             out.release()
         pipeline.stop()
         cv2.destroyAllWindows()

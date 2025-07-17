@@ -10,15 +10,15 @@ import sys
 
 def parse_args():
     """
-    解析命令行参数：
-    sys.argv[1] -- save_flag (控制是否保存数据，传入 False/0/no 则关闭保存，默认为 True)
-    sys.argv[2] -- run_time (程序运行时间，单位秒，不传入或为0则无限制运行)
-    sys.argv[3] -- save_dir (保存数据文件夹，不传入则默认为 "ira_data/")
-    sys.argv[4] -- save_name (保存文件名前缀，不传入则默认为 "data")
+    Parse command-line arguments:
+    sys.argv[1] -- save_flag (controls whether to save data; passing False/0/no disables saving, default is True)
+    sys.argv[2] -- run_time (execution duration in seconds; if not provided or 0, runs indefinitely)
+    sys.argv[3] -- save_dir (folder to save data; defaults to "ira_data/")
+    sys.argv[4] -- save_name (prefix for saved file name; defaults to "data")
     """
-    # 默认值
+    # Default values
     save_flag = True
-    run_time = 0   # 默认无限制运行
+    run_time = 0   # Run indefinitely by default
     save_dir = "ira_data/"
     save_name = "data"
     
@@ -28,7 +28,7 @@ def parse_args():
         try:
             run_time = float(sys.argv[2])
         except ValueError:
-            print("运行时间参数不合法，使用默认无限制运行")
+            print("Invalid run_time argument, using default (infinite)")
             run_time = 0
     if len(sys.argv) > 3:
         save_dir = sys.argv[3]
@@ -37,7 +37,7 @@ def parse_args():
     
     return save_flag, run_time, save_dir, save_name
 
-# 双线性插值函数
+# Bilinear interpolation function
 def SubpageInterpolating(subpage):
     shape = subpage.shape
     mat = subpage.copy()
@@ -69,7 +69,7 @@ def SubpageInterpolating(subpage):
             mat[i, j] = (top + down + left + right) / num
     return mat
 
-# 在图像上叠加温度值（可调密度）
+# Overlay temperature values on the image (density adjustable)
 def overlay_temperature_values(image, temperature, scale_factor=20, step=4):
     for i in range(0, temperature.shape[0], step):
         for j in range(0, temperature.shape[1], step):
@@ -79,42 +79,42 @@ def overlay_temperature_values(image, temperature, scale_factor=20, step=4):
             cv2.putText(image, text, (x+2, y+15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
     return image
 
-# 串口监听主程序，增加了 run_time 参数控制程序运行时间（秒）
+# Serial port monitoring main function, supports run_time to limit runtime (in seconds)
 def monitor_serial(port='', baud_rate=921600, save_flag=True, run_time=0, save_dir='', save_name=''):
     try:
-        # 创建保存数据的文件夹与文件名
+        # Create save folder and file names
         os.makedirs(save_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         video_path = os.path.join(save_dir, f"video_{timestamp}.mp4")
         data_path = os.path.join(save_dir, f"{save_name}_{timestamp}.pkl")
 
-        # 初始化串口
+        # Initialize serial port
         ser = serial.Serial(port, baud_rate, timeout=1)
-        print(f"成功打开串口 {port}，波特率 {baud_rate}")
+        print(f"Serial port {port} opened successfully at {baud_rate} baud.")
 
-        # 视频相关参数
+        # Video configuration
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         fps = 10
         frame_size = (32 * 20, 24 * 20)
-        # 若需要保存视频，可启用 video_writer
+        # To enable video saving, uncomment the line below
         # video_writer = cv2.VideoWriter(video_path, fourcc, fps, frame_size)
 
         cv2.namedWindow('IR Temperature', cv2.WINDOW_AUTOSIZE)
         all_temperature_data = []
 
-        # 帧率统计与程序运行时间记录（共用同一个 start_time）
+        # FPS tracking and runtime control (shared start_time)
         frame_count = 0
         start_time = time.time()
         display_fps = 0
 
         while True:
-            # 监听串口数据
+            # Read from serial port
             if ser.in_waiting > 0:
                 raw_data = ser.readline()
                 try:
                     text_data = raw_data.decode('utf-8').strip()
                 except UnicodeDecodeError:
-                    print("解码失败")
+                    print("Decoding failed")
                     continue
 
                 try:
@@ -124,66 +124,66 @@ def monitor_serial(port='', baud_rate=921600, save_flag=True, run_time=0, save_d
                         Detected_temperature = temperature_data.reshape((24, 32))
                         all_temperature_data.append(Detected_temperature.copy())
 
-                        # 数据插值
+                        # Apply interpolation
                         ira_interpolated = SubpageInterpolating(Detected_temperature)
 
-                        # 计算帧率
+                        # Update FPS
                         frame_count += 1
                         if frame_count % 50 == 0:
                             elapsed = time.time() - start_time
                             display_fps = frame_count / elapsed
-                            print(f"[INFO] 当前帧率: {display_fps:.2f} FPS")
+                            print(f"[INFO] Current FPS: {display_fps:.2f}")
 
-                        # 对图像进行归一化、扩展、着色处理
+                        # Normalize, upscale, and colorize the image
                         ira_norm = ((ira_interpolated - np.min(ira_interpolated)) / (39 - np.min(ira_interpolated))) * 255
                         ira_expand = np.repeat(ira_norm, 20, axis=0)
                         ira_expand = np.repeat(ira_expand, 20, axis=1)
                         ira_img_colored = cv2.applyColorMap(ira_expand.astype(np.uint8), cv2.COLORMAP_JET)
 
-                        # 在图像上添加温度数值及帧率显示文字
+                        # Add temperature text and FPS display
                         ira_img_colored = overlay_temperature_values(ira_img_colored, ira_interpolated)
                         cv2.putText(ira_img_colored, f"FPS: {display_fps:.1f}", (10, 20),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
                         cv2.imshow('IR Temperature', ira_img_colored)
-                        # 如需保存视频帧，可打开下面的语句
+                        # If you want to save video frames, uncomment the line below
                         # video_writer.write(ira_img_colored)
                     else:
-                        print(f"数据大小不匹配: {temperature_data.size}, 应为 768")
+                        print(f"Data size mismatch: {temperature_data.size}, expected 768")
                 except Exception as e:
-                    print(f"数据处理出错: {e}")
+                    print(f"Error processing data: {e}")
 
-            # 检测键盘输入
+            # Check keyboard input
             key = cv2.waitKey(1)
-            if key == 27 or key == 113:  # 按下 ESC 或 q 键退出
+            if key == 27 or key == 113:  # ESC or 'q' to quit
                 break
 
-            # 判断是否达到预设的运行时间（当 run_time 为正数时）
+            # Check if runtime limit is reached
             if run_time > 0 and (time.time() - start_time) > run_time:
-                print(f"达到设定的运行时间 {run_time} 秒，程序自动停止。")
+                print(f"Runtime limit {run_time} seconds reached. Stopping.")
                 break
 
     except serial.SerialException as e:
-        print(f"串口错误: {e}")
+        print(f"Serial error: {e}")
     except KeyboardInterrupt:
-        print("\n用户中断，关闭串口")
+        print("\nInterrupted by user, closing serial port")
     finally:
         if 'ser' in locals() and ser.is_open:
             ser.close()
-            print("串口已关闭")
+            print("Serial port closed")
         # if 'video_writer' in locals():
         #     video_writer.release()
-        #     print(f"视频保存至: {video_path}")
+        #     print(f"Video saved to: {video_path}")
         if all_temperature_data and save_flag:
             with open(data_path, 'wb') as f:
                 pickle.dump(all_temperature_data, f)
-            print(f"温度数据保存至: {data_path}")
+            print(f"Temperature data saved to: {data_path}")
         cv2.destroyAllWindows()
 
 def main():
-    # 解析命令行参数
+    # Parse command-line arguments
     save_flag, run_time, save_dir, save_name = parse_args()
-    # 调用串口监听函数，将解析的参数传递进去
+    # Call serial monitor function with parsed arguments
     monitor_serial(port='/dev/ttyUSB0', baud_rate=921600, save_flag=save_flag, 
                    run_time=run_time, save_dir=save_dir, save_name=save_name)
 

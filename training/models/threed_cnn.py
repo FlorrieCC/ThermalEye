@@ -28,9 +28,9 @@ class threeDCNN(nn.Module):
     def forward(self, x):
         """
         Args:
-            x: [B, 1, T, H, W] - 注意：输入维度顺序不同于 TCN 模型
+            x: [B, 1, T, H, W] - Note: the input dimension order is different from TCN model
         Returns:
-            y: [B, T] - 帧级二分类概率输出
+            y: [B, T] - Frame level binary probability output
         """
         x = self.encoder(x)            # -> [B, 32, T, H', W']
         x = self.temporal_conv(x)     # -> [B, 32, T, H', W']

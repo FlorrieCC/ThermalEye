@@ -14,14 +14,14 @@ class BlinkClassifier(pl.LightningModule):
         self.model = get_model(MODEL_NAME)
 
         self.register_buffer("target_device", torch.tensor([]))
-        self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]))  # 替换为带正样本权重的loss
+        self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]))  # Replace with weighted loss for positive samples
 
         # Evaluation metrics
-        self.train_f1 = F1Score(task="binary")  # 二分类任务
-        self.val_f1 = F1Score(task="binary")   # 验证集 F1
+        self.train_f1 = F1Score(task="binary")  # Binary classification task
+        self.val_f1 = F1Score(task="binary")    # F1 score on validation set
 
         self.input_adapter = nn.Sequential(
-            nn.Conv2d(1, 1, kernel_size=1)  # 简单的1x1卷积用于类型转换
+            nn.Conv2d(1, 1, kernel_size=1)  # Simple 1x1 convolution for type adaptation
         )
         self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1))
         
@@ -38,12 +38,12 @@ class BlinkClassifier(pl.LightningModule):
     #     loss = self.loss_fn(logits, y)
     #     probs = torch.sigmoid(logits)
     #     preds = (probs > 0.5).long() 
-    #     self.train_f1.update(preds, y.long())  # y 必须是整数类型（0/1）
+    #     self.train_f1.update(preds, y.long())  # y must be integer type (0/1)
     #     self.log("train_loss", loss, prog_bar=True)
     #     lr = self.trainer.optimizers[0].param_groups[0]['lr']
     #     self.log("lr", lr, prog_bar=True, on_step=True, on_epoch=True)
 
-    #     # Debug: 预测值统计
+    #     # Debug: Prediction statistics
     #     self.print(f"[TRAIN] Mean Pred: {probs.mean():.4f}, Std: {probs.std():.4f}")
     #     return loss
 
@@ -53,21 +53,22 @@ class BlinkClassifier(pl.LightningModule):
     #     y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
     #     loss = self.loss_fn(logits, y)
     #     probs = torch.sigmoid(logits)
-    #     preds = (probs > 0.5).long()  # 二分类预测（0/1）
+    #     preds = (probs > 0.5).long()  # Binary classification prediction (0/1)
         
     #     self.val_f1.update(preds, y.long())
     #     self.log("val_loss", loss, prog_bar=True)
     #     self.print(f"[VAL] Loss: {loss.item():.4f}, Mean Pred: {probs.mean():.4f}, Std: {probs.std():.4f}")
     #     return loss
+
     def training_step(self, batch, batch_idx):
         x, y = batch["x"], batch["y"]          # y: [B]
         logits = self(x)                       # logits: [B]
-        # y = y.float()                          # [B] 保持一致，不加 .unsqueeze()
+        # y = y.float()                          # [B] Keep it as-is, no .unsqueeze()
         y = y.float().unsqueeze(-1)  # [B] -> [B, 1]
         loss = self.loss_fn(logits, y)         # [B] vs [B]
         probs = torch.sigmoid(logits)          # [B]
         preds = (probs > 0.5).long()           # [B]
-        self.train_f1.update(preds, y.long())  # y需是long类型
+        self.train_f1.update(preds, y.long())  # y must be long type
 
         self.log("train_loss", loss, prog_bar=True)
         self.log("lr", self.trainer.optimizers[0].param_groups[0]['lr'],
@@ -90,28 +91,28 @@ class BlinkClassifier(pl.LightningModule):
 
     def on_train_epoch_end(self):
         self.log("train_f1", self.train_f1.compute(), prog_bar=True)
-        self.train_f1.reset()  # 重置指标，避免跨 epoch 累积
+        self.train_f1.reset()  # Reset metric to avoid accumulation across epochs
 
     def on_validation_epoch_end(self):
         val_f1 = self.val_f1.compute()
         self.log("val_f1", val_f1, prog_bar=True)
-        print(f"[VAL] F1 Score: {val_f1:.4f}")  # 打印 F1
-        self.val_f1.reset()  # 重置
+        print(f"[VAL] F1 Score: {val_f1:.4f}")  # Print F1 score
+        self.val_f1.reset()  # Reset
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
-        # 使用 ReduceLROnPlateau 调度器，根据验证集的指标动态调整学习率
+        # Use ReduceLROnPlateau scheduler to adjust LR dynamically based on validation metric
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode="min",  # 目标是最小化验证集损失
-            factor=0.5,  # 学习率缩减因子
-            patience=3,  # 如果验证集损失连续 3 次未改善，则调整学习率
+            mode="min",      # Minimize validation loss
+            factor=0.5,      # LR reduction factor
+            patience=3,      # Wait 3 evaluations without improvement
             verbose=True,
         )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "val_loss",  # 监控验证集损失
+                "monitor": "val_loss",  # Monitor validation loss
             },
         }

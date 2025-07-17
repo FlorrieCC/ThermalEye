@@ -6,7 +6,7 @@ def run_ira1_and_realsense(save_flag=True, run_time=0, ira1_dir="ira_data/", ira
     save_flag_str = "True" if save_flag else "False"
     run_time_str = str(run_time)
 
-    # 构造 ira1.py 命令
+    # Construct command for ira1.py
     ira1_cmd = [
         sys.executable,
         "ira/ira1.py",
@@ -16,7 +16,7 @@ def run_ira1_and_realsense(save_flag=True, run_time=0, ira1_dir="ira_data/", ira
         ira1_name
     ]
 
-    # 构造 realsense.py 命令
+    # Construct command for realsense.py
     realsense_cmd = [
         sys.executable,
         "real/realsense.py",
@@ -26,17 +26,17 @@ def run_ira1_and_realsense(save_flag=True, run_time=0, ira1_dir="ira_data/", ira
         real_name
     ]
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] 启动 ira1 子进程：", " ".join(ira1_cmd))
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting ira1 subprocess:", " ".join(ira1_cmd))
     ira1_proc = subprocess.Popen(ira1_cmd)
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] 启动 realsense 子进程：", " ".join(realsense_cmd))
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting realsense subprocess:", " ".join(realsense_cmd))
     realsense_proc = subprocess.Popen(realsense_cmd)
 
-    # 等待两个子进程完成
+    # Wait for both subprocesses to finish
     ira1_proc.wait()
     realsense_proc.wait()
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] 两个子进程已结束。")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Both subprocesses have finished.")
 
 if __name__ == "__main__":
     run_ira1_and_realsense(

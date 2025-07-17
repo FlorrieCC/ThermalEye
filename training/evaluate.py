@@ -14,17 +14,17 @@ from scipy.signal import medfilt
 @torch.no_grad()
 def extract_blink_segments(sequence, min_len=3):
     """
-    从二值化序列中提取眨眼段
+    Extract blink segments from a binarized sequence.
     Args:
-        sequence: 二值化序列 (0/1)
-        min_len: 最小有效段长度
+        sequence: Binarized sequence (0/1)
+        min_len: Minimum valid segment length
     Returns:
-        segments: 闭眼段的起始和结束索引列表
+        segments: List of closed-eye segment start and end indices
     """
     segments = []
     start = None
     for i, val in enumerate(sequence):
-        if val == 1:  # 闭眼状态
+        if val == 1:  # Closed-eye state
             if start is None:
                 start = i
         else:
@@ -37,13 +37,13 @@ def extract_blink_segments(sequence, min_len=3):
 
 def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.7):
     """
-    计算段级的 Accuracy, Precision, Recall, F1 Score
+    Compute segment-level Accuracy, Precision, Recall, and F1 Score.
     Args:
-        pred_segments: 预测的眨眼段列表 [(start1, end1), (start2, end2), ...]
-        gt_segments: 真实的眨眼段列表 [(start1, end1), (start2, end2), ...]
-        iou_threshold: IoU 阈值，用于判断段是否匹配
+        pred_segments: Predicted blink segments [(start1, end1), (start2, end2), ...]
+        gt_segments: Groundtruth blink segments [(start1, end1), (start2, end2), ...]
+        iou_threshold: IoU threshold for segment matching
     Returns:
-        metrics: 包含 Accuracy, Precision, Recall, F1 Score 的字典
+        metrics: Dictionary with Accuracy, Precision, Recall, F1 Score
     """
     matched_pred = set()
     matched_gt = set()
@@ -69,10 +69,10 @@ def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.7):
             if iou >= iou_threshold:
                 matched_pred.add(j)
                 matched_gt.add(i)
-                ious_matched.append(iou)   # 保存匹配 IoU
+                ious_matched.append(iou)   # Save matched IoU
                 break
 
-    # 新增返回
+    # Return updated values
     return {
         "accuracy": accuracy,
         "recall": recall,
@@ -84,52 +84,48 @@ def compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.7):
     
 def calculate_iou(pred_segment, gt_segment):
     """
-    计算两个段之间的 IoU（交并比）
+    Calculate IoU (Intersection over Union) between two segments.
     Args:
-        pred_segment: 预测段的起始和结束索引 (start, end)
-        gt_segment: 真实段的起始和结束索引 (start, end)
+        pred_segment: Predicted segment as (start, end)
+        gt_segment: Groundtruth segment as (start, end)
     Returns:
-        iou: IoU 值
+        iou: IoU value
     """
-    # 检查输入是否为元组
     if not isinstance(pred_segment, tuple) or not isinstance(gt_segment, tuple):
         raise ValueError(f"Invalid segment format: pred_segment={pred_segment}, gt_segment={gt_segment}")
 
-    # 解包元组
     start1, end1 = pred_segment
     start2, end2 = gt_segment
 
-    # 计算交集
     inter_start = max(start1, start2)
     inter_end = min(end1, end2)
     inter = max(0, inter_end - inter_start + 1)
 
     if inter == 0:
         return 0
-    # 计算并集
+
     union_start = min(start1, start2)
     union_end = max(end1, end2)
     union = union_end - union_start + 1
 
-    # 计算 IoU
     iou = inter / union if union > 0 else 0
     return iou
 
 def postprocess_predictions(probs, threshold=0.5, kernel_size=7, min_valid_len=5):
     """
-    对预测序列进行后处理：
-    - 中值滤波平滑
-    - 移除过短的片段（如伪闭眼）
+    Postprocess prediction sequence:
+    - Median filter smoothing
+    - Remove segments that are too short (false blinks)
     """
-    assert kernel_size % 2 == 1, "kernel_size 必须为奇数"
+    assert kernel_size % 2 == 1, "kernel_size must be odd"
 
-    # 1. 中值滤波平滑
+    # 1. Median filtering for smoothing
     probs_smoothed = medfilt(probs, kernel_size=kernel_size)
 
-    # 2. 二值化
+    # 2. Binarization
     preds_bin = (probs_smoothed >= threshold).astype(int)
 
-    # 3. 移除过短片段（闭眼段 < min_valid_len）
+    # 3. Remove short segments (closed-eye segments < min_valid_len)
     processed = preds_bin.copy()
     in_segment = False
     start = 0
@@ -140,10 +136,10 @@ def postprocess_predictions(probs, threshold=0.5, kernel_size=7, min_valid_len=5
             in_segment = True
         elif val == 0 and in_segment:
             if i - start < min_valid_len:
-                processed[start:i] = 0  # 移除短段
+                processed[start:i] = 0  # Remove short segments
             in_segment = False
     if in_segment and len(preds_bin) - start < min_valid_len:
-        processed[start:] = 0  # 尾部短段
+        processed[start:] = 0  # Remove short tail segment
 
     return probs_smoothed, processed
 
@@ -177,7 +173,7 @@ def evaluate_model(checkpoint_path):
         test_dataset,
         batch_size=1,              # Load one sequence at a time
         shuffle=False,
-        num_workers=0             # Single-threaded evaluation
+        num_workers=0              # Single-threaded evaluation
     )
 
     all_preds = []
@@ -189,7 +185,7 @@ def evaluate_model(checkpoint_path):
             logits = model(x)  # [B, 1] or [B]
             probs = torch.sigmoid(logits).squeeze().cpu().numpy()
             if probs.ndim == 0:
-                probs = np.expand_dims(probs, axis=0)  # 转换成 shape=(1,)
+                probs = np.expand_dims(probs, axis=0)  # Convert to shape=(1,)
         y = y.cpu().numpy()
         all_preds.extend(probs)
         all_labels.extend(y)
@@ -202,7 +198,6 @@ def evaluate_model(checkpoint_path):
 
     # Ground truth binary labels
     bin_labels = (all_labels >= 0.45).astype(int)
-
 
     # 3. Regression evaluation
     mae = mean_absolute_error(all_labels, all_preds_smoothed)
@@ -224,7 +219,7 @@ def evaluate_model(checkpoint_path):
     pr_precision, pr_recall, _ = precision_recall_curve(bin_labels, bin_preds)
     auc_pr = auc(pr_recall, pr_precision)
     
-    # save the precision-recall curve values
+    # Save the precision-recall curve values
     np.save("evaluate_output/pre_shy.npy", pr_precision)
     np.save("evaluate_output/recall_shy.npy", pr_recall)
     
@@ -256,18 +251,15 @@ def evaluate_model(checkpoint_path):
     blink_count_error = abs(pred_blink_count - gt_blink_count)
     print(f"  - Blink count error: {blink_count_error}")
     
-    
     metrics = compute_segment_metrics(pred_segments, gt_segments, iou_threshold=0.5)
     print(f"  - Accuracy : {metrics['accuracy']:.4f}")
     print(f"  - Recall   : {metrics['recall']:.4f}")
     print(f"  - Precision: {metrics['precision']:.4f}")
     print(f"  - F1 Score : {metrics['f1']:.4f}")
     print("  - Mean IoU (matched):", metrics["mean_iou"])
-        
-
 
     # Visualization
-    
+
     # ✅ font settings for matplotlib
     plt.rcParams.update({
         'pdf.fonttype': 42,
@@ -294,7 +286,7 @@ def evaluate_model(checkpoint_path):
     ax1.set_ylim(0, 1)
     ax1.grid(False)
 
-    # set spine linewidth   
+    # Set spine linewidth
     for spine in ax1.spines.values():
         spine.set_linewidth(1)
 
@@ -314,7 +306,7 @@ def evaluate_model(checkpoint_path):
     ax2.set_ylim(0, 1)
     ax2.grid(False)
 
-    # set spine linewidth
+    # Set spine linewidth
     for spine in ax2.spines.values():
         spine.set_linewidth(1)
 

@@ -6,10 +6,10 @@ from constants import FRAME_STACK_SIZE
 class ResNet18BlinkModel(nn.Module):
     def __init__(self, in_channels=FRAME_STACK_SIZE, num_classes=1, dropout_prob=0.3):
         super().__init__()
-        # 加载标准 resnet18 结构
+        # Load standard ResNet18 architecture
         self.base_model = models.resnet18(pretrained=False)
 
-        # 替换第一层以适应输入通道（默认是3通道RGB）
+        # Replace the first layer to support custom input channels (default is 3 for RGB)
         self.base_model.conv1 = nn.Conv2d(
             in_channels=in_channels,
             out_channels=64,
@@ -20,10 +20,10 @@ class ResNet18BlinkModel(nn.Module):
         )
         self.base_model.bn1 = nn.BatchNorm2d(64)
 
-        # 添加 Dropout 用于全连接层前的 regularization
+        # Add dropout for regularization before the fully connected layers
         self.dropout = nn.Dropout(dropout_prob)
 
-        # 修改最后分类层（fc）
+        # Modify the final classification layer (fc)
         in_features = self.base_model.fc.in_features
         self.base_model.fc = nn.Sequential(
             nn.Linear(in_features, 128),
@@ -33,4 +33,4 @@ class ResNet18BlinkModel(nn.Module):
         )
 
     def forward(self, x):
-        return self.base_model(x) # 输出为 [B, 1]
+        return self.base_model(x)  # Output shape: [B, 1]
