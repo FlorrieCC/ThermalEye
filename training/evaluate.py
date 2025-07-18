@@ -207,8 +207,6 @@ def evaluate_model(checkpoint_path):
     print(f"✅ MSE: {mse:.4f}")
 
     # 4. Binary classification evaluation (threshold = 0.5)
-    # bin_preds = (all_preds >= 0.5).astype(int)
-    # bin_labels = (all_labels >= 0.5).astype(int)
 
     acc = accuracy_score(bin_labels, bin_preds)
     f1 = f1_score(bin_labels, bin_preds)
@@ -220,8 +218,8 @@ def evaluate_model(checkpoint_path):
     auc_pr = auc(pr_recall, pr_precision)
     
     # Save the precision-recall curve values
-    np.save("evaluate_output/pre_shy.npy", pr_precision)
-    np.save("evaluate_output/recall_shy.npy", pr_recall)
+    # np.save("evaluate_output/pre_shy.npy", pr_precision)
+    # np.save("evaluate_output/recall_shy.npy", pr_recall)
     
 
     print("\n📊 Binary classification metrics:")
