@@ -18,8 +18,8 @@ LOG_DIR = "logs/"
 MODEL_NAME = "resnet18" 
 
 # === Data paths ===
-PKL_ROOT = "/Users/yvonne/Documents/final project/ThermalEye/ira_data"  
-CSV_ROOT = "/Users/yvonne/Documents/final project/ThermalEye/gt_output"
+PKL_ROOT = "ira_data"  
+CSV_ROOT = "gt_output"
 # SUBFOLDERS = ["cold", "hot"] 
 SUBFOLDERS = ["normal", "severe", "mild", "slow"]  # Subfolders for training and validation
 TEST_SUBFOLDERS = ["severe"]  # Subfolders for test set
